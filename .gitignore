@@ -6,8 +6,7 @@ dist
 # 빌드 아티팩트
 tsconfig.tsbuildinfo
 
-# Convex 자동 생성 파일
-convex/_generated/
+# Convex 자동 생성 파일 (빌드에 필요하므로 포함)
 skills-lock.json
 
 # 로컬 개발 도구 (Claude Code)

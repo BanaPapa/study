@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.local
+
+# 빌드 아티팩트
+tsconfig.tsbuildinfo
+
+# Convex 자동 생성 파일
+convex/_generated/
+skills-lock.json
+
+# 로컬 개발 도구 (Claude Code)
+.agents/
+.claude/

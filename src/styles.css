@@ -604,6 +604,16 @@ body.sb-resizing .app-shell {
 .node-menu button:hover { background: var(--accent-soft); color: var(--accent); }
 .node-menu .danger:hover { background: var(--rose-soft); color: oklch(50% 0.15 15); }
 
+/* 하단 + 버튼의 분류/기록 선택 팝업 (버튼 위로 띄움) */
+.nav-add-wrap { position: relative; }
+.nav-add-menu {
+  left: 4px;
+  right: 4px;
+  top: auto;
+  bottom: calc(100% - 16px);
+  width: auto;
+}
+
 .app-shell.nav-collapsed .side-head h2,
 .app-shell.nav-collapsed .row .twist,
 .app-shell.nav-collapsed .row .dot,

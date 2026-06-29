@@ -716,16 +716,13 @@ function App() {
   // Convex → local: 다른 기기에서 변경된 데이터를 실시간으로 반영
   useEffect(() => {
     if (!isAuthenticated || serverData === undefined) return;
-    const incoming: StudyNode[] = serverData
-      ? (JSON.parse(serverData) as StudyNode[])
-      : (() => {
-          const local = localStorage.getItem(STORE_KEY);
-          return local ? (JSON.parse(local) as StudyNode[]) : initialData();
-        })();
-    const json = JSON.stringify(incoming);
-    if (json === lastSavedRef.current) return;
-    lastSavedRef.current = json;
-    setNodes(incoming);
+    // 서버에 저장된 데이터가 아직 없으면(첫 동기화) 현재 로컬 데이터를 그대로 유지한다.
+    // 이때 lastSavedRef를 건드리면 아래 "local → Convex" 효과가 업로드를 스킵해서
+    // 로컬 데이터가 서버로 영영 올라가지 않는 버그가 생긴다. (그래서 여기서 그냥 빠진다)
+    if (serverData === null) return;
+    if (serverData === lastSavedRef.current) return;
+    lastSavedRef.current = serverData;
+    setNodes(JSON.parse(serverData) as StudyNode[]);
   }, [serverData, isAuthenticated]);
 
   // local → Convex: 변경사항을 즉시 저장

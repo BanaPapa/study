@@ -2136,7 +2136,9 @@ body.sb-resizing .app-shell {
 .modal-tabs button.active { color: var(--accent); border-color: var(--accent); }
 .modal-tabs span { color: var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 1px 6px; font-size: 15px; }
 .modal-body { flex: 1; overflow: auto; padding: 18px 24px; min-height: 240px; }
-.entry-modal .modal-body { min-height: 0; }
+.entry-modal .modal-body { min-height: 0; display: flex; flex-direction: column; }
+.entry-modal .modal-body > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.entry-modal .modal-body textarea { flex: 1; min-height: 0; height: 100%; resize: none; }
 .modal-body textarea {
   width: 100%;
   min-height: 220px;

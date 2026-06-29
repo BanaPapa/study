@@ -1836,6 +1836,15 @@ body.sb-resizing .app-shell {
 }
 .body p { margin: 0 0 3px; }
 .body li { margin-left: 18px; }
+.body-summary {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .attach, .tags-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
 .chip, .tag-pill {
   display: inline-flex;

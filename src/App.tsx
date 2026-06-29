@@ -1516,11 +1516,9 @@ function EntryCard({ entry, onEdit }: { entry: StudyEntry; onEdit: () => void })
       window.setTimeout(() => e.currentTarget.classList.remove("pulse"), 300);
     }}>
       <h3><span className="tick">✓</span>{entry.title}</h3>
-      <div className="body">
-        {entry.body.split("\n").map((line, idx) => line.startsWith("- ")
-          ? <li key={idx}>{line.slice(2)}</li>
-          : <p key={idx}>{line}</p>)}
-      </div>
+      <p className="body body-summary">
+        {entry.body.replace(/^[-*]\s*/gm, "").replace(/\n+/g, " ").trim() || "내용 없음"}
+      </p>
       {entry.attachments.length ? (
         <div className="attach">
           {entry.attachments.map((attachment) => <span className={`chip ${attachment.type}`} key={attachment.id}>{icon[attachment.type]} {attachment.name}</span>)}

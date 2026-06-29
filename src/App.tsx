@@ -590,6 +590,17 @@ function depthOf(nodes: StudyNode[], nodeId?: string, depth = 1): number {
   return 0;
 }
 
+// node 를 base 깊이에 두었을 때, 그 하위 트리에서 가장 깊은 "분류(폴더)"의 깊이를 구한다.
+// 기록함(leaf)은 깊이 제한을 받지 않으므로 base-1 을 돌려준다(자기 자신은 분류가 아님).
+function maxCategoryDepth(node: StudyNode, base: number): number {
+  if (node.leaf) return base - 1;
+  let max = base;
+  for (const child of node.children ?? []) {
+    max = Math.max(max, maxCategoryDepth(child, base + 1));
+  }
+  return max;
+}
+
 function allLeaves(nodes: StudyNode[]): StudyNode[] {
   return nodes.flatMap((node) => node.leaf ? [node] : allLeaves(node.children ?? []));
 }
@@ -875,6 +886,22 @@ function App() {
     const { dragId: dId, dropInfo: dInfo } = dragRef.current;
     if (!dId || !dInfo || dId === dInfo.id) return;
     const { id: targetId, position } = dInfo;
+
+    // 깊이 제한 검사: 현재 maxDepth 설정보다 깊은 위치에는 분류(폴더)를 둘 수 없다.
+    // 기록함은 어디든 가능하지만, 분류는 maxDepth 이하 깊이에만 놓일 수 있다.
+    const dragging = findNode(nodes, dId)?.node;
+    const targetDepth = depthOf(nodes, targetId);
+    if (dragging && targetDepth) {
+      const newDepth = position === "inside" ? targetDepth + 1 : targetDepth;
+      if (maxCategoryDepth(dragging, newDepth) > settings.maxDepth) {
+        dragRef.current = {};
+        setDragId(undefined);
+        setDropInfo(undefined);
+        say(`${settings.maxDepth}단계 설정이라 여기엔 분류를 둘 수 없어요. 기록함만 가능해요 📏`);
+        return;
+      }
+    }
+
     setNodes((prev) => cloneUpdate(prev, (draft) => {
       const dragResult = findNode(draft, dId);
       if (!dragResult) return;

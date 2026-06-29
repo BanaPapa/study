@@ -63,15 +63,25 @@ function hasChildren(node: StudyNode): boolean {
   return (node.children?.length ?? 0) > 0;
 }
 
-// 노드에 무엇을 추가/표시할지 결정하는 단일 규칙(깊이 기반).
-// - 하위 분류가 있으면 → 카테고리(하위 분류만 추가)
-// - 기록이 이미 있으면 → 기록 보관(종단, 기록만) — 기존 데이터 보존
-// - 그 외, 깊이가 maxDepth 미만이면 → 카테고리(더 깊이 분류 가능)
-// - maxDepth에 도달했으면 → 기록 보관(마지막 단계, 기록만)
-function addModeFor(node: StudyNode, depth: number, maxDepth: number): "category" | "record" {
-  if (hasChildren(node)) return "category";
-  if (node.entries?.length) return "record";
-  return depth < maxDepth ? "category" : "record";
+type AddCaps = { canAddCategory: boolean; canAddRecord: boolean; showRecords: boolean };
+
+// 노드에 무엇을 추가/표시할 수 있는지 결정하는 단일 규칙(깊이 기반).
+// "종단(마지막 단계)" 여부는 기록 보유가 아니라 depth == maxDepth 로 판정한다.
+// - 하위 분류가 있으면 → 카테고리(하위 분류만)
+// - depth < maxDepth 면 → 하위 분류 추가 가능(기록이 있어도 더 깊이 확장 가능)
+// - depth == maxDepth(마지막) 또는 기록 보유면 → 기록 화면/추가 가능
+function addCaps(node: StudyNode, depth: number, maxDepth: number): AddCaps {
+  const belowMax = depth < maxDepth;
+  if (hasChildren(node)) {
+    return { canAddCategory: belowMax, canAddRecord: false, showRecords: false };
+  }
+  const hasEntries = (node.entries?.length ?? 0) > 0;
+  const isLast = !belowMax; // depth == maxDepth (그 이상이면 오버플로지만 기록으로 취급)
+  return {
+    canAddCategory: belowMax,
+    canAddRecord: hasEntries || isLast,
+    showRecords: hasEntries || isLast,
+  };
 }
 
 // 옛 "기록함(leaf)" 개념 제거 마이그레이션.
@@ -891,6 +901,18 @@ function App() {
       const parent = findNode(draft, parentId)?.node;
       if (!parent) return;
       parent.children = parent.children ?? [];
+      // 부모가 직접 기록을 갖고 있는데 하위 분류를 추가하면, 카테고리가 되며
+      // 기록이 화면에서 숨겨진다. 기록을 전용 끝 노드로 옮겨 보존한다.
+      if ((parent.entries?.length ?? 0) > 0) {
+        parent.children.push({
+          id: `${parent.id}::records`,
+          name: `${parent.name} 기록`,
+          emoji: parent.emoji ?? "📘",
+          children: [],
+          entries: parent.entries,
+        });
+        parent.entries = [];
+      }
       parent.children.push(node);
       parent.open = true;
     }));
@@ -1286,12 +1308,14 @@ function NavAddButton({ selected, nodes, maxDepth, onAddRoot, onAddChild, onAddE
   onAddChild: (nodeId: string) => void;
   onAddEntry: (nodeId: string) => void;
 }) {
-  const mode = selected ? addModeFor(selected, depthOf(nodes, selected.id), maxDepth) : null;
+  const caps = selected ? addCaps(selected, depthOf(nodes, selected.id), maxDepth) : null;
+  // 기록 화면을 보는 노드면 기록 추가를, 아니면 하위 분류 추가를 기본 동작으로.
+  const primaryRecord = caps ? caps.canAddRecord : false;
   const label = !selected
     ? "대분류 추가"
-    : mode === "category"
-      ? "하위 분류 추가"
-      : "새 기록 추가";
+    : primaryRecord
+      ? "새 기록 추가"
+      : "하위 분류 추가";
   return (
     <button
       className="nav-add-button"
@@ -1300,8 +1324,8 @@ function NavAddButton({ selected, nodes, maxDepth, onAddRoot, onAddChild, onAddE
       onClick={(event) => {
         event.stopPropagation();
         if (!selected) onAddRoot();
-        else if (mode === "category") onAddChild(selected.id);
-        else onAddEntry(selected.id);
+        else if (primaryRecord) onAddEntry(selected.id);
+        else onAddChild(selected.id);
       }}
     >
       <span>＋</span>
@@ -1407,9 +1431,15 @@ function TreeNode(props: {
       </div>
       {menu && (
         <div className="node-menu" style={{ borderColor: soft }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          {addModeFor(node, depthOf(nodes, node.id), maxDepth) === "category"
-            ? <button onClick={() => { props.onAdd(node.id); closeMenu(); }}>＋ 하위 분류 추가</button>
-            : <button onClick={() => { props.onAddEntry(node.id); closeMenu(); }}>📝 새 기록 추가</button>}
+          {(() => {
+            const caps = addCaps(node, depthOf(nodes, node.id), maxDepth);
+            return (
+              <>
+                {caps.canAddCategory && <button onClick={() => { props.onAdd(node.id); closeMenu(); }}>＋ 하위 분류 추가</button>}
+                {caps.canAddRecord && <button onClick={() => { props.onAddEntry(node.id); closeMenu(); }}>📝 새 기록 추가</button>}
+              </>
+            );
+          })()}
           <button className="danger" onClick={() => { props.onDelete(node.id); closeMenu(); }}>🗑️ 삭제</button>
         </div>
       )}
@@ -1437,10 +1467,10 @@ function DetailView({ node, nodes, maxDepth, onSelect, onAdd, onAddEntry, onEdit
   const crumbs = pathTo(nodes, node.id);
 
   const depth = depthOf(nodes, node.id);
-  const canAddSub = depth < maxDepth;
-  const mode = addModeFor(node, depth, maxDepth);
+  const caps = addCaps(node, depth, maxDepth);
+  const canAddSub = caps.canAddCategory;
 
-  if (mode === "record") {
+  if (caps.showRecords) {
     const entries = [...(node.entries ?? [])].sort((a, b) => b.date.localeCompare(a.date));
     const grouped = entries.reduce<Record<string, StudyEntry[]>>((acc, entry) => {
       acc[entry.date] = acc[entry.date] ?? [];
@@ -1458,7 +1488,12 @@ function DetailView({ node, nodes, maxDepth, onSelect, onAdd, onAddEntry, onEdit
           title={node.name}
           subtitle="날짜별 학습 기록"
           onEmoji={() => onEmoji(node.id)}
-          action={<button className="btn btn-primary" onClick={() => onAddEntry(node.id)}>＋ 새 기록 추가</button>}
+          action={
+            <>
+              {caps.canAddCategory && <button className="btn" onClick={() => onAdd(node.id)}>＋ 하위 분류</button>}
+              <button className="btn btn-primary" onClick={() => onAddEntry(node.id)}>＋ 새 기록 추가</button>
+            </>
+          }
         />
         <div className="stats">
           <Stat label="🎯 오늘의 초점" value={node.name} color={dot} compact />

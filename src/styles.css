@@ -1978,9 +1978,9 @@ body.sb-resizing .app-shell {
 .btn.btn-primary.danger:hover { background: oklch(48% 0.22 25); }
 .modal.entry-modal {
   width: 50vw;
-  height: 50vh;
+  height: 70vh;
   max-width: none;
-  max-height: 50vh;
+  max-height: 70vh;
 }
 .modal.category-modal {
   width: 50vw;

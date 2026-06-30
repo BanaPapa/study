@@ -2524,11 +2524,15 @@ function markdownToHtml(text: string): string {
       }
       parts.push(`<ol class="md-ol">${items.join('')}</ol>`); continue;
     }
-    if (line.includes('|') && i + 1 < lines.length && /^\|?[\s:|-]+\|/.test(lines[i + 1])) {
-      const headers = parseTableRow(line); i += 2;
+    if (line.includes('|') && i + 1 < lines.length && /^\|?[\w\s%.:|-]+\|/.test(lines[i + 1])) {
+      const headers = parseTableRow(line);
+      const sepLine = lines[i + 1];
+      i += 2;
+      const sepCells = parseTableRow(sepLine);
+      const colWidths = sepCells.map(cell => { const m = cell.trim().match(/^--w:(.+)--$/); return m ? m[1] : null; });
       const rows: string[][] = [];
       while (i < lines.length && lines[i].includes('|')) { rows.push(parseTableRow(lines[i])); i++; }
-      parts.push(`<table class="md-table"><thead><tr>${headers.map(h => `<th>${inlineMdToHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${inlineMdToHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
+      parts.push(`<table class="md-table"><thead><tr>${headers.map((h, idx) => `<th${colWidths[idx] ? ` style="width:${colWidths[idx]}"` : ''}>${inlineMdToHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${inlineMdToHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
       continue;
     }
     if (!line.trim()) { parts.push('<div class="md-gap"><br></div>'); i++; continue; }
@@ -2584,10 +2588,14 @@ function nodeToMd(node: Node): string {
       return `\`\`\`\n${text}\n\`\`\``;
     }
     case 'table': {
-      const ths = Array.from(el.querySelectorAll('thead th')).map(th => th.textContent ?? '');
+      const thEls = Array.from(el.querySelectorAll('thead th')) as HTMLElement[];
+      if (!thEls.length) return inner();
+      const ths = thEls.map(th => th.textContent ?? '');
       const trs = Array.from(el.querySelectorAll('tbody tr')).map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.textContent ?? ''));
-      if (!ths.length) return inner();
-      return `| ${ths.join(' | ')} |\n|${ths.map(() => '------').join('|')}|\n${trs.map(r => `| ${r.join(' | ')} |`).join('\n')}`;
+      const colWidths = thEls.map(th => th.style.width || '');
+      const hasWidths = colWidths.some(w => w);
+      const sep = hasWidths ? colWidths.map(w => w ? `--w:${w}--` : '------').join('|') : ths.map(() => '------').join('|');
+      return `| ${ths.join(' | ')} |\n|${sep}|\n${trs.map(r => `| ${r.join(' | ')} |`).join('\n')}`;
     }
     case 'strong': case 'b': return `**${inner()}**`;
     case 'em': case 'i': return `*${inner()}*`;
@@ -2664,14 +2672,17 @@ function MarkdownPreview({ text, onWikiLink }: { text: string; onWikiLink?: (tit
       blocks.push(<ol key={`ol${i}`} className="md-ol">{items}</ol>); continue;
     }
     // Table: current line has | and next line is a separator
-    if (line.includes('|') && i + 1 < lines.length && /^\|?[\s:|-]+\|/.test(lines[i + 1])) {
+    if (line.includes('|') && i + 1 < lines.length && /^\|?[\w\s%.:|-]+\|/.test(lines[i + 1])) {
       const headers = parseTableRow(line);
+      const sepLine = lines[i + 1];
       i += 2;
+      const sepCells = parseTableRow(sepLine);
+      const colWidths = sepCells.map(cell => { const m = cell.trim().match(/^--w:(.+)--$/); return m ? m[1] : null; });
       const rows: string[][] = [];
       while (i < lines.length && lines[i].includes('|')) { rows.push(parseTableRow(lines[i])); i++; }
       blocks.push(
         <table key={`tbl${i}`} className="md-table">
-          <thead><tr>{headers.map((h, j) => <th key={j}>{parseInline(h, onWikiLink)}</th>)}</tr></thead>
+          <thead><tr>{headers.map((h, j) => <th key={j} style={colWidths[j] ? {width: colWidths[j]} : undefined}>{parseInline(h, onWikiLink)}</th>)}</tr></thead>
           <tbody>{rows.map((row, j) => <tr key={j}>{row.map((cell, k) => <td key={k}>{parseInline(cell, onWikiLink)}</td>)}</tr>)}</tbody>
         </table>
       );
@@ -2927,6 +2938,7 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
   const valueRef = useRef(value);
   const [hrCtx, setHrCtx] = useState<{ el: HTMLElement; x: number; y: number } | null>(null);
   const [tableCtx, setTableCtx] = useState<{ table: HTMLElement; td: HTMLElement; x: number; y: number } | null>(null);
+  const colResizeRef = useRef<{ ths: HTMLElement[]; idx: number; startX: number; startWidths: number[] } | null>(null);
 
   useEffect(() => {
     const close = (e: Event) => {
@@ -3002,6 +3014,84 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
     });
     sync();
     setTableCtx(null);
+  };
+
+  const equalizeColWidths = () => {
+    if (!tableCtx) return;
+    const headerRow = tableCtx.table.querySelector('thead tr') as HTMLElement | null;
+    const ths = Array.from((headerRow ?? tableCtx.table.querySelector('tr'))?.querySelectorAll('th') ?? []) as HTMLElement[];
+    if (!ths.length) return;
+    const w = `${(100 / ths.length).toFixed(2)}%`;
+    ths.forEach(th => { th.style.width = w; });
+    sync();
+  };
+
+  const equalizeRowHeights = () => {
+    if (!tableCtx) return;
+    const rows = Array.from(tableCtx.table.querySelectorAll('tbody tr')) as HTMLElement[];
+    if (!rows.length) return;
+    rows.forEach(tr => Array.from(tr.querySelectorAll('td')).forEach(td => { (td as HTMLElement).style.height = ''; }));
+    const maxH = Math.max(...rows.map(tr => tr.offsetHeight));
+    rows.forEach(tr => Array.from(tr.querySelectorAll('td')).forEach(td => { (td as HTMLElement).style.height = `${maxH}px`; }));
+    sync();
+  };
+
+  const handleEditorMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (colResizeRef.current) return;
+    const target = e.target as HTMLElement;
+    const cell = target.closest('td, th') as HTMLElement | null;
+    if (cell && divRef.current?.contains(cell)) {
+      const rect = cell.getBoundingClientRect();
+      const tr = cell.closest('tr') as HTMLElement | null;
+      const cells = Array.from(tr?.querySelectorAll('td, th') ?? []) as HTMLElement[];
+      const idx = cells.indexOf(cell);
+      if (idx < cells.length - 1 && e.clientX >= rect.right - 7) {
+        if (divRef.current) divRef.current.style.cursor = 'col-resize';
+        return;
+      }
+    }
+    if (divRef.current) divRef.current.style.cursor = '';
+  };
+
+  const handleEditorMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const cell = target.closest('td, th') as HTMLElement | null;
+    if (!cell || !divRef.current?.contains(cell)) return;
+    const rect = cell.getBoundingClientRect();
+    if (e.clientX < rect.right - 7) return;
+    const table = cell.closest('table') as HTMLElement | null;
+    if (!table) return;
+    const tr = cell.closest('tr') as HTMLElement | null;
+    const cellsInRow = Array.from(tr?.querySelectorAll('td, th') ?? []) as HTMLElement[];
+    const cellIdx = cellsInRow.indexOf(cell);
+    const headerRow = table.querySelector('thead tr') as HTMLElement | null;
+    const ths = Array.from((headerRow ?? table.querySelector('tr'))?.querySelectorAll('th') ?? []) as HTMLElement[];
+    if (!ths.length || cellIdx < 0 || cellIdx >= ths.length - 1) return;
+    e.preventDefault();
+    const startWidths = ths.map(th => {
+      if (th.style.width && th.style.width.endsWith('%')) {
+        return (parseFloat(th.style.width) / 100) * table.offsetWidth;
+      }
+      return th.offsetWidth;
+    });
+    ths.forEach((th, i) => { th.style.width = `${startWidths[i]}px`; });
+    colResizeRef.current = { ths, idx: cellIdx, startX: e.clientX, startWidths };
+    const onMove = (ev: Event) => {
+      if (!colResizeRef.current) return;
+      const { ths: rThs, idx, startX, startWidths: sw } = colResizeRef.current;
+      const dx = (ev as unknown as { clientX: number }).clientX - startX;
+      rThs[idx].style.width = `${Math.max(40, sw[idx] + dx)}px`;
+      if (rThs[idx + 1]) rThs[idx + 1].style.width = `${Math.max(40, sw[idx + 1] - dx)}px`;
+    };
+    const onUp = () => {
+      colResizeRef.current = null;
+      if (divRef.current) divRef.current.style.cursor = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      sync();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   };
 
   useLayoutEffect(() => {
@@ -3239,6 +3329,8 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
         onKeyUp={handleKeyUp}
         onPaste={handlePaste}
         onClick={handleClick}
+        onMouseMove={handleEditorMouseMove}
+        onMouseDown={handleEditorMouseDown}
       />
       {hrCtx && (
         <div
@@ -3280,12 +3372,14 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
           onMouseDown={e => e.preventDefault()}
         >
           <span className="hr-ctx-label">행</span>
-          <button type="button" className="hr-ctx-btn" title="아래에 행 추가" onClick={addRowBelow}>⊕행</button>
-          <button type="button" className="hr-ctx-btn hr-ctx-del" title="행 삭제" onClick={deleteRow}>⊖행</button>
+          <button type="button" className="hr-ctx-btn table-ctx-btn" title="아래에 행 추가" onClick={addRowBelow}>+ 행</button>
+          <button type="button" className="hr-ctx-btn table-ctx-btn hr-ctx-del" title="행 삭제" onClick={deleteRow}>− 행</button>
+          <button type="button" className="hr-ctx-btn table-ctx-btn" title="행 높이 균등" onClick={equalizeRowHeights}>행↕</button>
           <span className="hr-ctx-sep" />
           <span className="hr-ctx-label">열</span>
-          <button type="button" className="hr-ctx-btn" title="오른쪽에 열 추가" onClick={addColRight}>⊕열</button>
-          <button type="button" className="hr-ctx-btn hr-ctx-del" title="열 삭제" onClick={deleteCol}>⊖열</button>
+          <button type="button" className="hr-ctx-btn table-ctx-btn" title="오른쪽에 열 추가" onClick={addColRight}>+ 열</button>
+          <button type="button" className="hr-ctx-btn table-ctx-btn hr-ctx-del" title="열 삭제" onClick={deleteCol}>− 열</button>
+          <button type="button" className="hr-ctx-btn table-ctx-btn" title="열 너비 균등" onClick={equalizeColWidths}>열↔</button>
         </div>
       )}
     </div>
@@ -3342,7 +3436,7 @@ function EntryModal({ node, entryId, onClose, onSave, onDelete, nodePath, obsidi
   };
 
   return (
-    <div className="modal-overlay show" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-overlay show">
       <div className="modal entry-modal">
         <div className="modal-head">
           <input className="modal-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="노트 제목을 입력하세요" />

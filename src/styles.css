@@ -3411,7 +3411,10 @@ body.sb-resizing .app-shell {
 .hr-ctx-sep { width: 1px; height: 16px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
 .hr-ctx-del { color: #e57373; }
 .hr-ctx-del:hover { background: rgba(229,115,115,0.1); }
-.table-ctx { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px 6px; display: flex; align-items: center; gap: 2px; box-shadow: 0 4px 16px rgba(0,0,0,0.14); user-select: none; }
+.table-ctx { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; display: flex; align-items: center; gap: 3px; box-shadow: 0 4px 20px rgba(0,0,0,0.18); user-select: none; }
+.table-ctx-btn { padding: 5px 12px !important; font-size: 13px !important; font-weight: 500; }
+.table-ctx .hr-ctx-label { font-size: 12px; padding: 0 5px; }
+.table-ctx .hr-ctx-sep { height: 18px; }
 
 /* ── 마크다운 textarea ─────────────────────── */
 .md-editor-body {
@@ -3617,7 +3620,7 @@ body.sb-resizing .app-shell {
 .wysiwyg-editor .md-wiki { color: var(--accent); cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
 .wysiwyg-editor .md-big { font-size: 1.35em; font-weight: 600; }
 .wysiwyg-editor .md-small { font-size: 0.78em; opacity: 0.75; }
-.wysiwyg-editor table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 0.93em; }
+.wysiwyg-editor table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 0.93em; table-layout: fixed; }
 .wysiwyg-editor th { background: var(--surface-2); font-weight: 600; }
 .wysiwyg-editor td, .wysiwyg-editor th { border: 1px solid var(--border); padding: 4px 10px; }
 .tb-link.active { background: var(--accent-soft); color: var(--accent); }

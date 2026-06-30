@@ -3020,10 +3020,10 @@ function EntryModal({ node, entryId, onClose, onSave, onDelete, nodePath, obsidi
       <div className="modal entry-modal">
         <div className="modal-head">
           <input className="modal-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="노트 제목을 입력하세요" />
+          <input className="date-input entry-date-inline" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <IconButton label="닫기" onClick={onClose}>×</IconButton>
         </div>
         <div className="modal-sub">
-          <input className="date-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <span className="modal-sub-hint">{node.name}</span>
         </div>
         <div className="modal-tabs">

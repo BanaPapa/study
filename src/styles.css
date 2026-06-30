@@ -2147,7 +2147,7 @@ body.sb-resizing .app-shell {
   font-family: var(--font-cute);
   font-size: 26px;
 }
-.modal-sub { display: flex; align-items: center; gap: 10px; padding: 0 24px 14px; }
+.modal-sub { display: flex; align-items: center; gap: 10px; padding: 0 24px 10px; }
 .date-input {
   border: 1.5px solid var(--border-2);
   border-radius: 10px;
@@ -2157,13 +2157,19 @@ body.sb-resizing .app-shell {
   font-size: 16.5px;
   font-weight: 800;
 }
+.entry-date-inline {
+  font-size: 14px;
+  padding: 4px 8px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
 .modal-sub-hint { color: var(--faint); font-size: 16px; }
 .modal-tabs { display: flex; gap: 4px; padding: 0 18px; border-bottom: 1px solid var(--border); }
 .modal-tabs button {
   padding: 10px 14px;
   border-bottom: 2.5px solid transparent;
   color: var(--muted);
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 900;
 }
 .modal-tabs button.active { color: var(--accent); border-color: var(--accent); }
@@ -3327,21 +3333,21 @@ body.sb-resizing .app-shell {
   flex-wrap: wrap;
 }
 .tb {
-  padding: 3px 7px;
+  padding: 6px 14px;
   border: none;
   background: transparent;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--muted);
   transition: background .12s, color .12s;
-  min-width: 26px;
+  min-width: 36px;
   line-height: 1.4;
 }
 .tb:hover { background: var(--accent-soft); color: var(--accent); }
-.tb.mono { font-family: monospace; font-size: 11px; }
-.tb-sep { width: 1px; height: 14px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+.tb.mono { font-family: monospace; font-size: 13px; }
+.tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
 
 /* ── 마크다운 textarea ─────────────────────── */
 .md-editor-body {
@@ -3415,8 +3421,8 @@ body.sb-resizing .app-shell {
   gap: 6px;
 }
 .export-md-btn, .obsidian-btn {
-  font-size: 12px;
-  padding: 4px 10px;
+  font-size: 15px;
+  padding: 8px 18px;
   border-radius: 7px;
   border: 1px solid var(--border);
   cursor: pointer;
@@ -3521,7 +3527,7 @@ body.sb-resizing .app-shell {
 }
 /* 서식 스타일 — md-preview와 동일 */
 .wysiwyg-editor h1, .wysiwyg-editor h2, .wysiwyg-editor h3 { font-weight: 700; margin: 0; }
-.wysiwyg-editor h1 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 6px; }
+.wysiwyg-editor h1 { font-size: 1.45em; margin-bottom: 6px; }
 .wysiwyg-editor h2 { font-size: 1.2em; margin-bottom: 4px; }
 .wysiwyg-editor h3 { font-size: 1.05em; margin-bottom: 3px; }
 .wysiwyg-editor p { margin: 4px 0; }

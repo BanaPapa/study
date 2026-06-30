@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import type { CSSProperties, JSX, MouseEvent, ReactNode } from "react";
 import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
@@ -46,6 +46,7 @@ type Settings = {
   navSize: number;
   bodySize: number;
   titleSize: number;
+  obsidianVault: string;
 };
 
 type ModalState =
@@ -173,7 +174,8 @@ const defaultSettings: Settings = {
   sidebarWidth: 300,
   navSize: 16,
   bodySize: 14,
-  titleSize: 30
+  titleSize: 30,
+  obsidianVault: ""
 };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -703,6 +705,29 @@ function cloneUpdate(nodes: StudyNode[], updater: (draft: StudyNode[]) => void) 
   return draft;
 }
 
+function exportNoteToMd(folderPath: string, entry: StudyEntry) {
+  const yaml = [
+    '---',
+    `title: "${entry.title.replace(/"/g, '\\"')}"`,
+    `date: "${entry.date}"`,
+    `folder: "${folderPath}"`,
+    `tags: [${entry.tags.map((t) => `"${t}"`).join(', ')}]`,
+    '---',
+    '',
+  ].join('\n');
+  const content = yaml + entry.body;
+  const safe = entry.title.replace(/[\\/:*?"<>|]/g, '').trim() || 'note';
+  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${safe}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function App() {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { signOut } = useAuthActions();
@@ -714,7 +739,7 @@ function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [selectedId, setSelectedId] = useState<string | undefined>(() => allLeaves(bootData)[0]?.id);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"tree" | "stats" | "profile">("tree");
+  const [view, setView] = useState<"tree" | "stats" | "profile" | "graph">("tree");
   const [modal, setModal] = useState<ModalState>(null);
   const [draftEmoji, setDraftEmoji] = useState("📁");
   const [toast, setToast] = useState("오늘도 한 줄 기록해볼까? ✏️");
@@ -906,7 +931,7 @@ function App() {
         burst(r.left + r.width / 2, r.top + r.height / 2);
       }
     }, 60);
-    say("새 분류 추가! 📁");
+    say("새 폴더 추가! 📁");
   }
 
   function saveEntry(nodeId: string, saved: StudyEntry) {
@@ -925,7 +950,7 @@ function App() {
       const r = main.getBoundingClientRect();
       burst(r.left + r.width / 2, 160);
     }
-    say("기록 저장! ✨");
+    say("노트 저장! ✨");
   }
 
   function deleteEntry(nodeId: string, entryId: string) {
@@ -933,7 +958,7 @@ function App() {
       node.entries = (node.entries ?? []).filter((entry) => entry.id !== entryId);
     });
     setModal(null);
-    say("기록을 지웠어요 🧹");
+    say("노트를 지웠어요 🧹");
   }
 
   function moveNode(dropX: number, dropY: number) {
@@ -1011,6 +1036,14 @@ function App() {
             </div>
           )}
         </div>
+        {!navCollapsed && (
+          <div className="sidebar-view-tabs">
+            <button className={`svt${view === "tree" ? " active" : ""}`} onClick={() => setView("tree")} title="트리 뷰">🌳</button>
+            <button className={`svt${view === "graph" ? " active" : ""}`} onClick={() => setView("graph")} title="그래프 뷰">🕸️</button>
+            <button className={`svt${view === "stats" ? " active" : ""}`} onClick={() => setView("stats")} title="통계">📊</button>
+            <button className={`svt${view === "profile" ? " active" : ""}`} onClick={() => setView("profile")} title="연동">🔗</button>
+          </div>
+        )}
         <button
           className="nav-toggle"
           onClick={() => setNavCollapsed((v) => !v)}
@@ -1078,6 +1111,8 @@ function App() {
           <StatsView nodes={nodes} searchTag={(tag) => setQuery(`#${tag}`)} />
         ) : view === "profile" ? (
           <ProfileView />
+        ) : view === "graph" ? (
+          <GraphView nodes={nodes} onNavigate={(nodeId) => { setView("tree"); setSelectedId(nodeId); }} />
         ) : selected ? (
           <DetailView
             node={selected}
@@ -1131,6 +1166,13 @@ function App() {
           onClose={() => setModal(null)}
           onSave={saveEntry}
           onDelete={deleteEntry}
+          nodePath={pathTo(nodes, modal.nodeId).map((n) => n.name).join(" › ")}
+          obsidianVault={settings.obsidianVault}
+          allNodes={nodes}
+          onWikiLink={(titleTarget) => {
+            const found = allEntries(nodes).find(e => e.entry.title === titleTarget);
+            if (found) { setModal(null); setSelectedId(found.node.id); }
+          }}
         />
       )}
       {modal?.kind === "category" && (
@@ -1275,11 +1317,11 @@ function NavAddButton({ selected, nodes, onAddRoot, onAddChild, onAddEntry }: {
     <div className="nav-add-wrap">
       {open && (
         <div className="node-menu nav-add-menu" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          {folderAllowed && <button onClick={() => { onAddChild(selected.id); setOpen(false); }}>📁 분류 추가</button>}
-          <button onClick={() => { onAddEntry(selected.id); setOpen(false); }}>📝 기록 추가</button>
+          {folderAllowed && <button onClick={() => { onAddChild(selected.id); setOpen(false); }}>📁 폴더 추가</button>}
+          <button onClick={() => { onAddEntry(selected.id); setOpen(false); }}>📝 노트 추가</button>
         </div>
       )}
-      <button className="nav-add-button" aria-label="추가" title="분류 또는 기록 추가"
+      <button className="nav-add-button" aria-label="추가" title="폴더 또는 노트 추가"
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}>
         <span>＋</span>
       </button>
@@ -1391,8 +1433,8 @@ function TreeNode(props: {
       </div>
       {menu && (
         <div className="node-menu" style={{ borderColor: soft }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          {canAddCategory(depthOf(nodes, node.id)) && <button onClick={() => { props.onAdd(node.id); closeMenu(); }}>＋ 분류 추가</button>}
-          <button onClick={() => { props.onAddEntry(node.id); closeMenu(); }}>📝 기록 추가</button>
+          {canAddCategory(depthOf(nodes, node.id)) && <button onClick={() => { props.onAdd(node.id); closeMenu(); }}>＋ 폴더 추가</button>}
+          <button onClick={() => { props.onAddEntry(node.id); closeMenu(); }}>📝 노트 추가</button>
           <button className="danger" onClick={() => { props.onDelete(node.id); closeMenu(); }}>🗑️ 삭제</button>
         </div>
       )}
@@ -1437,25 +1479,25 @@ function DetailView({ node, nodes, onSelect, onAdd, onAddEntry, onEditEntry, onE
         emoji={node.emoji}
         soft={soft}
         title={node.name}
-        subtitle="폴더와 기록을 한 곳에서"
+        subtitle="폴더와 노트를 한 곳에서"
         onEmoji={() => onEmoji(node.id)}
         action={
           <>
-            {folderAllowed && <button className="btn" onClick={() => onAdd(node.id)}>＋ 분류 추가</button>}
-            <button className="btn btn-primary" onClick={() => onAddEntry(node.id)}>＋ 기록 추가</button>
+            {folderAllowed && <button className="btn" onClick={() => onAdd(node.id)}>＋ 폴더 추가</button>}
+            <button className="btn btn-primary" onClick={() => onAddEntry(node.id)}>＋ 노트 추가</button>
           </>
         }
       />
       <div className="stats">
-        <Stat label="📁 하위 분류" value={children.length} suffix="개" color={dot} compact />
-        <Stat label="📝 기록" value={entries.length} suffix="개" color="var(--mint)" compact />
-        <Stat label="⏱ 최근 기록" value={latest ? `${relDay(latest.date)} · ${latest.title}` : "아직 없음"} color="var(--peach)" compact />
-        <Stat label="✏️ 다음 한 줄" value={latest ? "오늘 배운 것" : "첫 기록 남기기"} color="var(--sky)" compact />
+        <Stat label="📁 하위 폴더" value={children.length} suffix="개" color={dot} compact />
+        <Stat label="📝 노트" value={entries.length} suffix="개" color="var(--mint)" compact />
+        <Stat label="⏱ 최근 노트" value={latest ? `${relDay(latest.date)} · ${latest.title}` : "아직 없음"} color="var(--peach)" compact />
+        <Stat label="✏️ 다음 한 줄" value={latest ? "오늘 배운 것" : "첫 노트 남기기"} color="var(--sky)" compact />
       </div>
 
       {children.length > 0 && (
         <>
-          <h2 className="section-title">하위 분류</h2>
+          <h2 className="section-title">하위 폴더</h2>
           <div className="grid-cards">
             {children.map((child) => {
               const [cdot, csoft] = palette[colorIndexFor(nodes, child.id) % palette.length];
@@ -1466,11 +1508,11 @@ function DetailView({ node, nodes, onSelect, onAdd, onAddEntry, onEditEntry, onE
                 <button className="cat-card" key={child.id} onClick={() => onSelect(child.id)}>
                   <div className="top">
                     <div className="ic" style={{ background: csoft }}>{child.emoji}</div>
-                    <div><h4>{child.name}</h4><span>{childKids > 0 ? `${childKids}개 폴더 · ` : ""}{countEntries(child)}개 기록</span></div>
+                    <div><h4>{child.name}</h4><span>{childKids > 0 ? `${childKids}개 폴더 · ` : ""}{countEntries(child)}개 노트</span></div>
                   </div>
                   <div className="ring-row">
                     <div className="ring" style={{ "--p": childPct, "--rc": cdot } as CSSProperties}><b>{childPct}%</b></div>
-                    <div className="meta"><b>{countEntries(child)}</b>개 기록<br />열어보기</div>
+                    <div className="meta"><b>{countEntries(child)}</b>개 노트<br />열어보기</div>
                   </div>
                 </button>
               );
@@ -1481,7 +1523,7 @@ function DetailView({ node, nodes, onSelect, onAdd, onAddEntry, onEditEntry, onE
 
       {entries.length > 0 && (
         <>
-          <h2 className="section-title">기록</h2>
+          <h2 className="section-title">노트</h2>
           <div className="timeline">
             {Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map((date) => (
               <section className="day" key={date}>
@@ -1498,10 +1540,33 @@ function DetailView({ node, nodes, onSelect, onAdd, onAddEntry, onEditEntry, onE
       {children.length === 0 && entries.length === 0 && (
         <EmptyState
           title="비어있어요"
-          body={folderAllowed ? "‘＋ 분류 추가’로 폴더를, ‘＋ 기록 추가’로 메모를 남겨보세요" : "‘＋ 기록 추가’로 메모를 남겨보세요"}
+          body={folderAllowed ? "’＋ 폴더 추가’로 폴더를, ‘＋ 노트 추가’로 노트를 남겨보세요" : "’＋ 노트 추가’로 노트를 남겨보세요"}
           emoji="📂"
         />
       )}
+
+      {(() => {
+        const myTitles = new Set(entries.map(e => e.title));
+        const backlinks = allEntries(nodes).filter(({ node: n, entry: e }) => {
+          if (n.id === node.id) return false;
+          for (const m of e.body.matchAll(/\[\[(.+?)\]\]/g)) { if (myTitles.has(m[1])) return true; }
+          return false;
+        });
+        if (!backlinks.length) return null;
+        return (
+          <div className="backlinks-section">
+            <h2 className="section-title">🔗 이 폴더를 언급한 노트 ({backlinks.length})</h2>
+            <div className="backlinks-list">
+              {backlinks.map(({ node: n, entry: e }) => (
+                <button key={e.id} type="button" className="backlink-item" onClick={() => onSelect(n.id)}>
+                  <span className="backlink-folder">{n.emoji} {n.name}</span>
+                  <span className="backlink-title">{e.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
@@ -1575,7 +1640,7 @@ function SearchView({ query, results, nodes, onOpen }: {
 }) {
   return (
     <>
-      <PageHead crumbs={[]} emoji="🔍" soft="var(--accent-soft)" title="검색 결과" subtitle={`'${query}' · ${results.length}개 기록 매칭`} onEmoji={() => {}} />
+      <PageHead crumbs={[]} emoji="🔍" soft="var(--accent-soft)" title="검색 결과" subtitle={`'${query}' · ${results.length}개 노트 매칭`} onEmoji={() => {}} />
       <div className="search-results">
         {results.length ? results.map(({ node, entry }) => (
           <button className="search-hit" key={entry.id} onClick={() => onOpen(node.id)}>
@@ -1610,12 +1675,12 @@ function StatsView({ nodes, searchTag }: { nodes: StudyNode[]; searchTag: (tag: 
     <>
       <PageHead crumbs={[]} emoji="📊" soft="var(--accent-soft)" title="학습 통계" subtitle="카테고리·태그·기록 추이를 한눈에" onEmoji={() => {}} />
       <div className="stats">
-        <Stat label="📚 기록 칸" value={leaves.length} suffix="개" color="var(--accent)" />
-        <Stat label="📝 전체 기록" value={entries.length} suffix="개" color="var(--mint)" />
+        <Stat label="📚 노트 칸" value={leaves.length} suffix="개" color="var(--accent)" />
+        <Stat label="📝 전체 노트" value={entries.length} suffix="개" color="var(--mint)" />
         <Stat label="🏷️ 사용중인 태그" value={Object.keys(tagCounts).length} suffix="개" color="var(--peach)" />
         <Stat label="🔥 연속 기록" value="7" suffix="일" color="var(--sky)" />
       </div>
-      <h2 className="section-title">대분류별 기록 현황</h2>
+      <h2 className="section-title">대분류별 노트 현황</h2>
       <div className="cat-bars">
         {nodes.map((node) => {
           const [dot] = palette[(node.colorIndex ?? 0) % palette.length];
@@ -1629,7 +1694,7 @@ function StatsView({ nodes, searchTag }: { nodes: StudyNode[]; searchTag: (tag: 
           );
         })}
       </div>
-      <h2 className="section-title">최근 14일 기록 추이</h2>
+      <h2 className="section-title">최근 14일 노트 추이</h2>
       <div className="day-bars">
         {days.map((day) => <div className="dbar" key={day.iso}><div style={{ height: day.count ? 12 + Math.round(day.count / maxDay * 56) : 4 }} /><span>{new Date(`${day.iso}T00:00`).getDate()}</span></div>)}
       </div>
@@ -1643,14 +1708,113 @@ function StatsView({ nodes, searchTag }: { nodes: StudyNode[]; searchTag: (tag: 
   );
 }
 
+function GraphView({ nodes: studyNodes, onNavigate }: { nodes: StudyNode[]; onNavigate: (nodeId: string) => void }) {
+  const entries = useMemo(() => allEntries(studyNodes), [studyNodes]);
+
+  const { gNodes, gEdges } = useMemo(() => {
+    const W = 800, H = 520;
+    const titleToInfo = new Map(entries.map(e => [e.entry.title, { id: e.entry.id, nodeId: e.node.id }]));
+    const edgeSet = new Set<string>();
+    const edges: { from: string; to: string }[] = [];
+    for (const { entry } of entries) {
+      for (const m of entry.body.matchAll(/\[\[(.+?)\]\]/g)) {
+        const t = titleToInfo.get(m[1]);
+        if (t && t.id !== entry.id) {
+          const key = [entry.id, t.id].sort().join('|');
+          if (!edgeSet.has(key)) { edgeSet.add(key); edges.push({ from: entry.id, to: t.id }); }
+        }
+      }
+    }
+    const count = entries.length;
+    const pos = entries.map((_, i) => ({
+      x: W / 2 + Math.cos((i / count) * Math.PI * 2) * (Math.min(W, H) * 0.33),
+      y: H / 2 + Math.sin((i / count) * Math.PI * 2) * (Math.min(W, H) * 0.33),
+      vx: 0, vy: 0,
+    }));
+    const idxOf = new Map(entries.map((e, i) => [e.entry.id, i]));
+    for (let iter = 0; iter < 90; iter++) {
+      for (let a = 0; a < pos.length; a++) {
+        for (let b = a + 1; b < pos.length; b++) {
+          const dx = pos[b].x - pos[a].x || 0.1, dy = pos[b].y - pos[a].y || 0.1;
+          const d = Math.sqrt(dx * dx + dy * dy) || 1, f = 1800 / (d * d);
+          pos[a].vx -= dx / d * f; pos[a].vy -= dy / d * f;
+          pos[b].vx += dx / d * f; pos[b].vy += dy / d * f;
+        }
+      }
+      for (const e of edges) {
+        const si = idxOf.get(e.from)!, ti = idxOf.get(e.to)!;
+        if (si === undefined || ti === undefined) continue;
+        const dx = pos[ti].x - pos[si].x, dy = pos[ti].y - pos[si].y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1, f = (d - 130) * 0.045;
+        pos[si].vx += dx / d * f; pos[si].vy += dy / d * f;
+        pos[ti].vx -= dx / d * f; pos[ti].vy -= dy / d * f;
+      }
+      for (const p of pos) {
+        p.vx += (W / 2 - p.x) * 0.007; p.vy += (H / 2 - p.y) * 0.007;
+        p.vx *= 0.88; p.vy *= 0.88;
+        p.x = Math.max(50, Math.min(W - 50, p.x + p.vx));
+        p.y = Math.max(50, Math.min(H - 50, p.y + p.vy));
+      }
+    }
+    const gNodes = entries.map((e, i) => ({ id: e.entry.id, title: e.entry.title, nodeId: e.node.id, x: pos[i].x, y: pos[i].y }));
+    return { gNodes, gEdges: edges };
+  }, [entries]);
+
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  return (
+    <>
+      <PageHead crumbs={[]} emoji="🕸️" soft="var(--accent-soft)" title="노트 연결 그래프" subtitle={`${gNodes.length}개 노트 · ${gEdges.length}개 연결`} onEmoji={() => {}} />
+      {gNodes.length === 0 ? (
+        <div className="graph-empty">
+          <p>아직 노트가 없습니다.</p>
+          <p className="graph-empty-hint">노트 내용에 <code>{'[[다른 노트 제목]]'}</code>을 입력하면 연결이 생깁니다.</p>
+        </div>
+      ) : (
+        <>
+          <p className="graph-hint">노트 본문에서 <code>{'[[노트 제목]]'}</code>을 입력하거나 툴바의 🔗 버튼을 사용해 연결을 만드세요. 노드를 클릭하면 해당 폴더로 이동합니다.</p>
+          <div className="graph-wrap">
+            <svg className="graph-svg" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet">
+              {gEdges.map((e, idx) => {
+                const s = gNodes.find(n => n.id === e.from), t = gNodes.find(n => n.id === e.to);
+                if (!s || !t) return null;
+                const active = hovered === s.id || hovered === t.id;
+                return <line key={idx} x1={s.x} y1={s.y} x2={t.x} y2={t.y} stroke={active ? "var(--accent)" : "var(--border-2)"} strokeWidth={active ? 2.5 : 1.5} opacity={active ? 1 : 0.5} />;
+              })}
+              {gNodes.map(n => {
+                const linked = gEdges.some(e => e.from === n.id || e.to === n.id);
+                const hot = hovered === n.id;
+                return (
+                  <g key={n.id} onClick={() => onNavigate(n.nodeId)} onMouseEnter={() => setHovered(n.id)} onMouseLeave={() => setHovered(null)} style={{ cursor: 'pointer' }}>
+                    <circle cx={n.x} cy={n.y} r={hot ? 19 : 14} fill={linked ? "var(--accent-soft)" : "var(--surface-2)"} stroke={hot || linked ? "var(--accent)" : "var(--border)"} strokeWidth={hot ? 3 : 1.5} style={{ transition: 'r .12s, stroke-width .12s' }} />
+                    <text x={n.x} y={n.y + (hot ? 30 : 26)} textAnchor="middle" fontSize={hot ? 11 : 10} fill="var(--fg)" fontWeight={hot ? 700 : 400} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                      {n.title.length > 11 ? n.title.slice(0, 11) + '…' : n.title}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function ProfileView() {
   return (
     <>
-      <PageHead crumbs={[]} emoji="🔗" soft="var(--sky-soft)" title="연동 준비실" subtitle="백엔드와 옵시디언 연결을 위한 구조가 준비되어 있어요" onEmoji={() => {}} />
+      <PageHead crumbs={[]} emoji="🔗" soft="var(--sky-soft)" title="연동 & 내보내기" subtitle="Obsidian, 마크다운 내보내기, 백엔드 연결" onEmoji={() => {}} />
+      <h2 className="section-title">🟣 Obsidian 연동</h2>
       <div className="profile-grid">
-        <InfoCard title="현재 저장소" value="브라우저 localStorage" body="오프라인으로 바로 기록할 수 있고, 이후 Supabase/Convex 어댑터로 교체하기 쉽게 앱 상태를 분리했습니다." />
-        <InfoCard title="추천 백엔드" value="Supabase 우선" body="인증, Postgres, 파일 스토리지가 한 번에 필요하면 Supabase가 좋아요. 실시간 협업을 강하게 밀면 Convex도 좋은 선택입니다." />
-        <InfoCard title="옵시디언" value="준비중" body="노트 링크와 파일 메타데이터는 이미 기록 모델에 있으니, 나중에 URI 또는 플러그인 연동을 붙이면 됩니다." />
+        <InfoCard title="노트 → Obsidian으로 열기" value="obsidian:// URI 지원" body="노트 편집 모달 하단의 '🟣 Obsidian' 버튼을 누르면 현재 노트가 Obsidian의 새 노트로 즉시 열립니다. 설정에서 볼트 이름을 지정하면 해당 볼트로 바로 연결됩니다." />
+        <InfoCard title=".md 내보내기" value="YAML Frontmatter 포함" body="노트 편집 모달의 '⬇ .md' 버튼으로 YAML 메타데이터(제목, 날짜, 태그, 폴더 경로)가 포함된 마크다운 파일을 다운로드할 수 있습니다. 파일을 Obsidian 볼트 폴더에 놓으면 바로 인식됩니다." />
+        <InfoCard title="Obsidian → 앱으로 가져오기" value="Local REST API 플러그인 필요" body="Obsidian Community Plugin인 'Local REST API'(포트 27123)를 설치하면 앱에서 볼트를 읽어 올 수 있는 방향으로 확장 가능합니다. 현재는 .md 파일 수동 복사 방식을 권장합니다." />
+      </div>
+      <h2 className="section-title">💾 저장소 & 백엔드</h2>
+      <div className="profile-grid">
+        <InfoCard title="현재 저장소" value="Convex 실시간 동기화" body="로그인 후 모든 데이터가 Convex 서버에 실시간으로 동기화됩니다. 여러 기기에서 즉시 반영됩니다." />
+        <InfoCard title="마크다운 에디터" value="노션 스타일 서식 지원" body="**굵게**, *기울임*, ~~취소선~~, # 제목, - 목록, - [ ] 체크박스, > 인용, --- 구분선, `코드`를 직접 입력하거나 툴바를 활용하세요. 미리보기 모드로 결과를 확인할 수 있습니다." />
       </div>
     </>
   );
@@ -1883,8 +2047,8 @@ function MobileShell(props: {
           <div><h2>학습 통계</h2><p>카테고리·태그·기록 추이</p></div>
         </div>
         <div className="statline">
-          <div className="s"><b>{allLeaves(props.nodes).length}</b><span>기록 칸</span></div>
-          <div className="s"><b>{allEntries(props.nodes).length}</b><span>총 기록</span></div>
+          <div className="s"><b>{allLeaves(props.nodes).length}</b><span>노트 칸</span></div>
+          <div className="s"><b>{allEntries(props.nodes).length}</b><span>총 노트</span></div>
           <div className="s"><b>7</b><span>연속 기록</span></div>
         </div>
         <div className="cat-grid">
@@ -1893,7 +2057,7 @@ function MobileShell(props: {
             return (
               <button className="cat-card" key={node.id} onClick={() => openFolderCard(node)}>
                 <div className="ic" style={{ background: soft }}>{node.emoji}</div>
-                <div className="tx"><h4>{node.name}</h4><p>{countEntries(node)}개 기록</p></div>
+                <div className="tx"><h4>{node.name}</h4><p>{countEntries(node)}개 노트</p></div>
                 <Chev />
               </button>
             );
@@ -1955,13 +2119,13 @@ function MobileShell(props: {
               <button className="ctx-btn" onClick={() => {
                 setSheet(null);
                 openAddSheet(ctxNode.id);
-              }}><PlusIcon /><span>새 분류 추가</span></button>
+              }}><PlusIcon /><span>새 폴더 추가</span></button>
             )}
             {!ctxEntry && ctxNode && !hasChildren(ctxNode) && (
               <button className="ctx-btn" onClick={() => {
                 setSheet(null);
                 openEntrySheet(ctxNode.id);
-              }}><PlusIcon /><span>새 기록 추가</span></button>
+              }}><PlusIcon /><span>새 노트 추가</span></button>
             )}
             {!ctxEntry && ctxNode && <button className="ctx-btn" onClick={() => {
               const next = window.prompt("새 이름", ctxNode.name);
@@ -1969,7 +2133,7 @@ function MobileShell(props: {
               setSheet(null);
             }}><EditIcon />이름 변경</button>}
             {!ctxEntry && ctxNode && <button className="ctx-btn" onClick={() => setSheet("emoji")}>😊 이모지 변경</button>}
-            {ctxEntry && ctxNode && <button className="ctx-btn" onClick={() => { setSheet(null); openEntrySheet(ctxNode.id, ctxEntry.id); }}><EditIcon />기록 편집</button>}
+            {ctxEntry && ctxNode && <button className="ctx-btn" onClick={() => { setSheet(null); openEntrySheet(ctxNode.id, ctxEntry.id); }}><EditIcon />노트 편집</button>}
             <button className="ctx-btn danger" onClick={() => {
               if (ctxEntry && ctxNode) props.onDeleteEntry(ctxNode.id, ctxEntry.id);
               else if (ctxNode) props.onDeleteNode(ctxNode.id);
@@ -1982,10 +2146,10 @@ function MobileShell(props: {
               <button className="em" onClick={() => setSheet("emoji")}>{addEmoji}</button>
               <input value={addName} onChange={(event) => setAddName(event.target.value)} placeholder="이름을 입력하세요…" />
             </div>
-            <div className="add-hint">{addParentId ? "하위 분류를 추가합니다" : "새 대분류 카테고리를 추가합니다"}</div>
+            <div className="add-hint">{addParentId ? "하위 폴더를 추가합니다" : "새 최상위 폴더를 추가합니다"}</div>
             {addLeaf && (
               <div className="es-scroll add-leaf-entry">
-                <label className="es-label">첫 기록 제목</label>
+                <label className="es-label">첫 노트 제목</label>
                 <input className="es-input" value={addEntryTitle} onChange={(event) => setAddEntryTitle(event.target.value)} placeholder="오늘 공부한 내용의 제목" />
                 <label className="es-label">날짜</label>
                 <input className="es-input" type="date" value={addEntryDate} onChange={(event) => setAddEntryDate(event.target.value)} />
@@ -2010,7 +2174,7 @@ function MobileShell(props: {
           </div>
           <div className={`sheet ${sheet === "entry" ? "show" : ""}`} style={{ maxHeight: "90%" }}>
             <div className="handle" />
-            <div className="sheet-title">{entryId ? "기록 편집" : "새 기록"}</div>
+            <div className="sheet-title">{entryId ? "노트 편집" : "새 노트"}</div>
             <div className="es-scroll">
               <label className="es-label">제목</label>
               <input className="es-input" value={entryTitle} onChange={(event) => setEntryTitle(event.target.value)} placeholder="오늘 공부한 내용의 제목" />
@@ -2069,8 +2233,8 @@ function MobileTreeNode({ node, nodes, openNode, openCtxNode, longPress }: {
   const latest = hasChildren(node)
     ? `${node.children?.length ?? 0}개 하위`
     : node.entries?.[0]
-      ? `${countEntries(node)}개 기록 · ${relDay(node.entries[0].date)}`
-      : "기록 없음";
+      ? `${countEntries(node)}개 노트 · ${relDay(node.entries[0].date)}`
+      : "노트 없음";
   return (
     <div className={`tnode ${node.open ? "open" : ""}`} data-id={node.id}>
       <div className="trow" onClick={() => openNode(node)} {...longPress(() => openCtxNode(node.id))}>
@@ -2111,14 +2275,14 @@ function MobileFolder({ node, nodes, maxDepth, onBack, openFolderCard, openAddSh
         <div className="s"><b>{insights.empty}</b><span>비어있는 분류</span></div>
         <div className="s"><b>{insights.nextLine}</b><span>다음 한 줄</span></div>
       </div>
-      {depth < maxDepth && <button className="btn-add-sub" onClick={() => openAddSheet(node.id)}><PlusIcon />새 분류 추가</button>}
+      {depth < maxDepth && <button className="btn-add-sub" onClick={() => openAddSheet(node.id)}><PlusIcon />새 폴더 추가</button>}
       <div className="cat-grid">
         {children.length ? children.map((child) => {
           const [__, childSoft] = palette[colorIndexFor(nodes, child.id) % palette.length];
           return (
             <button className="cat-card" key={child.id} onClick={() => openFolderCard(child)} {...longPress(() => openCtxNode(child.id))}>
               <div className="ic" style={{ background: childSoft }}>{child.emoji}</div>
-              <div className="tx"><h4>{child.name}</h4><p>{hasChildren(child) ? `${child.children?.length ?? 0}개 하위` : "기록 보관"} · {countEntries(child)}개 기록</p></div>
+              <div className="tx"><h4>{child.name}</h4><p>{hasChildren(child) ? `${child.children?.length ?? 0}개 하위` : "노트 보관"} · {countEntries(child)}개 노트</p></div>
               <Chev />
             </button>
           );
@@ -2162,7 +2326,7 @@ function MobileLeaf({ node, nodes, onBack, openEntrySheet, openCtxEntry, longPre
           <div className="daylabel"><span className="d">{fmt(date)}</span><span className="rel">{relDay(date)}</span><span className="ln" /></div>
           {grouped[date].map((entry) => <MobileEntryCard key={entry.id} entry={entry} onDouble={() => openEntrySheet(node.id, entry.id)} longPress={() => openCtxEntry(node.id, entry.id)} longPressHandlers={longPress} />)}
         </div>
-      )) : <MobileEmpty emoji="🌱" title="아직 기록이 없어요" body="꾹 눌러 첫 기록을 남겨보세요" />}
+      )) : <MobileEmpty emoji="🌱" title="아직 노트가 없어요" body="꾹 눌러 첫 노트를 남겨보세요" />}
     </div>
   );
 }
@@ -2219,8 +2383,8 @@ function ConfirmDeleteModal({ node, onClose, onConfirm }: {
   const folderCount = node.children?.length ?? 0;
   const entryCount = countEntries(node);
   const parts = [
-    folderCount > 0 ? `하위 분류 ${folderCount}개` : "",
-    entryCount > 0 ? `기록 ${entryCount}개` : "",
+    folderCount > 0 ? `하위 폴더 ${folderCount}개` : "",
+    entryCount > 0 ? `노트 ${entryCount}개` : "",
   ].filter(Boolean);
   return (
     <div className="modal-overlay show" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -2246,35 +2410,274 @@ function ConfirmDeleteModal({ node, onClose, onConfirm }: {
   );
 }
 
-function EntryModal({ node, entryId, onClose, onSave, onDelete }: {
+type InlineToken = string | { kind: 'strong' | 'em' | 'del' | 'code' | 'wiki' | 'big' | 'small'; text: string };
+
+function parseInline(text: string, onWiki?: (title: string) => void): JSX.Element {
+  const tokens: InlineToken[] = [];
+  const re = /\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[\[(.+?)\]\]|\{big\}(.+?)\{\/big\}|\{small\}(.+?)\{\/small\}/g;
+  let last = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) tokens.push(text.slice(last, m.index));
+    if (m[1] !== undefined) tokens.push({ kind: 'strong', text: m[1] });
+    else if (m[2] !== undefined) tokens.push({ kind: 'em', text: m[2] });
+    else if (m[3] !== undefined) tokens.push({ kind: 'del', text: m[3] });
+    else if (m[4] !== undefined) tokens.push({ kind: 'code', text: m[4] });
+    else if (m[5] !== undefined) tokens.push({ kind: 'wiki', text: m[5] });
+    else if (m[6] !== undefined) tokens.push({ kind: 'big', text: m[6] });
+    else if (m[7] !== undefined) tokens.push({ kind: 'small', text: m[7] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) tokens.push(text.slice(last));
+  return (
+    <>{tokens.map((t, i) => {
+      if (typeof t === 'string') return <span key={i}>{t}</span>;
+      if (t.kind === 'strong') return <strong key={i}>{t.text}</strong>;
+      if (t.kind === 'em') return <em key={i}>{t.text}</em>;
+      if (t.kind === 'del') return <del key={i}>{t.text}</del>;
+      if (t.kind === 'code') return <code key={i} className="md-ic">{t.text}</code>;
+      if (t.kind === 'wiki') return (
+        <button key={i} type="button" className="md-wikilink" onClick={() => onWiki?.(t.text)}>
+          [[{t.text}]]
+        </button>
+      );
+      if (t.kind === 'big') return <span key={i} style={{ fontSize: '1.35em', fontWeight: 600 }}>{t.text}</span>;
+      if (t.kind === 'small') return <span key={i} style={{ fontSize: '0.78em', opacity: 0.75 }}>{t.text}</span>;
+      return null;
+    })}</>
+  );
+}
+
+function parseTableRow(line: string): string[] {
+  const t = line.trim();
+  const w = t.startsWith('|') ? t : `|${t}`;
+  const e = w.endsWith('|') ? w : `${w}|`;
+  return e.split('|').slice(1, -1).map(c => c.trim());
+}
+
+function MarkdownPreview({ text, onWikiLink }: { text: string; onWikiLink?: (title: string) => void }) {
+  const lines = text.split('\n');
+  const blocks: JSX.Element[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^-{3,}\s*$/.test(line)) {
+      blocks.push(<hr key={i} className="md-hr" />); i++; continue;
+    }
+    const hm = line.match(/^(#{1,3})\s+(.+)$/);
+    if (hm) {
+      const lv = hm[1].length;
+      const Tag = `h${lv}` as 'h1' | 'h2' | 'h3';
+      blocks.push(<Tag key={i} className={`md-h md-h${lv}`}>{parseInline(hm[2], onWikiLink)}</Tag>);
+      i++; continue;
+    }
+    if (line.startsWith('```')) {
+      const codeLines: string[] = []; i++;
+      while (i < lines.length && !lines[i].startsWith('```')) { codeLines.push(lines[i]); i++; }
+      blocks.push(<pre key={i} className="md-pre"><code>{codeLines.join('\n')}</code></pre>);
+      i++; continue;
+    }
+    if (line.startsWith('> ')) {
+      blocks.push(<blockquote key={i} className="md-bq">{parseInline(line.slice(2), onWikiLink)}</blockquote>);
+      i++; continue;
+    }
+    const cbm = line.match(/^[-*]\s+\[([x ])\]\s+(.*)$/i);
+    if (cbm) {
+      blocks.push(
+        <div key={i} className="md-check">
+          <input type="checkbox" defaultChecked={cbm[1].toLowerCase() === 'x'} readOnly />
+          <label>{parseInline(cbm[2], onWikiLink)}</label>
+        </div>
+      ); i++; continue;
+    }
+    if (/^[-*]\s+/.test(line) && !line.match(/^[-*]\s+\[/)) {
+      const items: JSX.Element[] = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i]) && !lines[i].match(/^[-*]\s+\[/)) {
+        items.push(<li key={i}>{parseInline(lines[i].replace(/^[-*]\s+/, ''), onWikiLink)}</li>); i++;
+      }
+      if (items.length) { blocks.push(<ul key={`ul${i}`} className="md-ul">{items}</ul>); continue; }
+    }
+    if (/^\d+\.\s+/.test(line)) {
+      const items: JSX.Element[] = [];
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+        items.push(<li key={i}>{parseInline(lines[i].replace(/^\d+\.\s+/, ''), onWikiLink)}</li>); i++;
+      }
+      blocks.push(<ol key={`ol${i}`} className="md-ol">{items}</ol>); continue;
+    }
+    // Table: current line has | and next line is a separator
+    if (line.includes('|') && i + 1 < lines.length && /^\|?[\s:|-]+\|/.test(lines[i + 1])) {
+      const headers = parseTableRow(line);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].includes('|')) { rows.push(parseTableRow(lines[i])); i++; }
+      blocks.push(
+        <table key={`tbl${i}`} className="md-table">
+          <thead><tr>{headers.map((h, j) => <th key={j}>{parseInline(h, onWikiLink)}</th>)}</tr></thead>
+          <tbody>{rows.map((row, j) => <tr key={j}>{row.map((cell, k) => <td key={k}>{parseInline(cell, onWikiLink)}</td>)}</tr>)}</tbody>
+        </table>
+      );
+      continue;
+    }
+    if (!line.trim()) { blocks.push(<div key={i} className="md-gap" />); i++; continue; }
+    blocks.push(<p key={i} className="md-p">{parseInline(line, onWikiLink)}</p>); i++;
+  }
+  return <div className="md-preview">{blocks}</div>;
+}
+
+function MarkdownToolbar({ taRef, value, onChange, allEntryTitles }: {
+  taRef: { current: HTMLTextAreaElement | null };
+  value: string;
+  onChange: (v: string) => void;
+  allEntryTitles?: string[];
+}) {
+  const [showLinkPicker, setShowLinkPicker] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
+
+  const wrap = (before: string, after: string, ph: string) => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = s !== e ? value.slice(s, e) : ph;
+    const next = value.slice(0, s) + before + sel + after + value.slice(e);
+    onChange(next);
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(s + before.length, s + before.length + sel.length); }, 0);
+  };
+  const prefix = (pfx: string) => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const s = ta.selectionStart;
+    const ls = value.lastIndexOf('\n', s - 1) + 1;
+    const le = value.indexOf('\n', s);
+    const end = le === -1 ? value.length : le;
+    const line = value.slice(ls, end);
+    const has = line.startsWith(pfx);
+    const newLine = has ? line.slice(pfx.length) : pfx + line;
+    const next = value.slice(0, ls) + newLine + value.slice(end);
+    onChange(next);
+    setTimeout(() => { ta.focus(); const np = s + (has ? -pfx.length : pfx.length); ta.setSelectionRange(np, np); }, 0);
+  };
+  const insert = (text: string) => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const s = ta.selectionStart;
+    const next = value.slice(0, s) + text + value.slice(s);
+    onChange(next);
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(s + text.length, s + text.length); }, 0);
+  };
+  const insertWikiLink = (title: string) => {
+    insert(`[[${title}]]`);
+    setShowLinkPicker(false);
+    setLinkSearch('');
+  };
+
+  const filteredTitles = (allEntryTitles ?? []).filter(t => t.toLowerCase().includes(linkSearch.toLowerCase())).slice(0, 12);
+
+  return (
+    <div className="md-toolbar-wrap">
+      <div className="md-toolbar">
+        <button type="button" className="tb" title="굵게 (**)" onClick={() => wrap('**', '**', '굵게')}><b>B</b></button>
+        <button type="button" className="tb" title="기울임 (*)" onClick={() => wrap('*', '*', '기울임')}><i>I</i></button>
+        <button type="button" className="tb" title="취소선 (~~)" onClick={() => wrap('~~', '~~', '취소선')}><s>S</s></button>
+        <span className="tb-sep" />
+        <button type="button" className="tb" title="크게 ({big})" onClick={() => wrap('{big}', '{/big}', '큰 텍스트')}>A+</button>
+        <button type="button" className="tb" title="작게 ({small})" onClick={() => wrap('{small}', '{/small}', '작은 텍스트')}>a-</button>
+        <span className="tb-sep" />
+        <button type="button" className="tb" title="제목 1 (#)" onClick={() => prefix('# ')}>H1</button>
+        <button type="button" className="tb" title="제목 2 (##)" onClick={() => prefix('## ')}>H2</button>
+        <button type="button" className="tb" title="제목 3 (###)" onClick={() => prefix('### ')}>H3</button>
+        <span className="tb-sep" />
+        <button type="button" className="tb" title="목록 (-)" onClick={() => prefix('- ')}>•≡</button>
+        <button type="button" className="tb" title="체크박스 (- [ ])" onClick={() => prefix('- [ ] ')}>☑</button>
+        <button type="button" className="tb" title="인용 (>)" onClick={() => prefix('> ')}>❝</button>
+        <span className="tb-sep" />
+        <button type="button" className="tb mono" title="인라인 코드 (`)" onClick={() => wrap('`', '`', 'code')}>`cd`</button>
+        <button type="button" className="tb" title="구분선 (---)" onClick={() => insert('\n---\n')}>—</button>
+        <button type="button" className="tb" title="표 삽입" onClick={() => insert('\n| 제목1 | 제목2 | 제목3 |\n|------|------|------|\n| 내용1 | 내용2 | 내용3 |\n')}>⊞</button>
+        <span className="tb-sep" />
+        <button
+          type="button"
+          className={`tb tb-link${showLinkPicker ? ' active' : ''}`}
+          title="노트 링크 [[]]"
+          onClick={() => setShowLinkPicker(v => !v)}
+        >🔗 [[]]</button>
+      </div>
+      {showLinkPicker && (
+        <div className="link-picker">
+          <input
+            className="link-picker-search"
+            placeholder="노트 이름 검색..."
+            value={linkSearch}
+            onChange={e => setLinkSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="link-picker-list">
+            {filteredTitles.length === 0 ? (
+              <div className="link-picker-empty">노트가 없습니다</div>
+            ) : filteredTitles.map(t => (
+              <button key={t} type="button" className="link-picker-item" onClick={() => insertWikiLink(t)}>{t}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EntryModal({ node, entryId, onClose, onSave, onDelete, nodePath, obsidianVault, allNodes, onWikiLink }: {
   node?: StudyNode;
   entryId?: string;
   onClose: () => void;
   onSave: (nodeId: string, entry: StudyEntry) => void;
   onDelete: (nodeId: string, entryId: string) => void;
+  nodePath?: string;
+  obsidianVault?: string;
+  allNodes?: StudyNode[];
+  onWikiLink?: (title: string) => void;
 }) {
   const existing = node?.entries?.find((entry) => entry.id === entryId);
   const [title, setTitle] = useState(existing?.title ?? "");
   const [date, setDate] = useState(existing?.date ?? todayISO());
-  const [body, setBody] = useState(existing?.body ?? "- ");
+  const [body, setBody] = useState(existing?.body ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>(existing?.attachments ?? []);
   const [tags, setTags] = useState<string[]>(existing?.tags ?? []);
   const [tab, setTab] = useState<"content" | "files" | "links">("content");
   const [tagInput, setTagInput] = useState("");
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [preview, setPreview] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const allEntryTitles = useMemo(() => {
+    if (!allNodes) return [];
+    const titles: string[] = [];
+    const collect = (ns: StudyNode[]) => ns.forEach(n => { n.entries?.forEach(e => { if (e.title !== title) titles.push(e.title); }); collect(n.children ?? []); });
+    collect(allNodes);
+    return titles;
+  }, [allNodes, title]);
 
   if (!node) return null;
+
   const save = () => {
     if (!title.trim()) return;
     onSave(node.id, { id: existing?.id ?? id("e"), title: title.trim(), date, body, attachments, tags });
+  };
+
+  const handleExportMd = () => {
+    exportNoteToMd(nodePath ?? node.name, {
+      id: existing?.id ?? id("e"), title: title.trim() || "노트", date, body, attachments, tags
+    });
+  };
+
+  const handleObsidian = () => {
+    const params = new URLSearchParams({ name: title.trim() || "노트", content: body });
+    if (obsidianVault) params.set('vault', obsidianVault);
+    window.open(`obsidian://new?${params.toString()}`);
   };
 
   return (
     <div className="modal-overlay show" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal entry-modal">
         <div className="modal-head">
-          <input className="modal-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="오늘 공부한 제목을 적어주세요" />
+          <input className="modal-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="노트 제목을 입력하세요" />
           <IconButton label="닫기" onClick={onClose}>×</IconButton>
         </div>
         <div className="modal-sub">
@@ -2285,9 +2688,26 @@ function EntryModal({ node, entryId, onClose, onSave, onDelete }: {
           <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}>📝 내용</button>
           <button className={tab === "files" ? "active" : ""} onClick={() => setTab("files")}>📎 파일 <span>{attachments.filter((a) => a.type !== "link").length || ""}</span></button>
           <button className={tab === "links" ? "active" : ""} onClick={() => setTab("links")}>🔗 링크 <span>{attachments.filter((a) => a.type === "link").length || ""}</span></button>
+          {tab === "content" && (
+            <button type="button" className={`preview-toggle-btn ${preview ? "active" : ""}`} onClick={() => setPreview((v) => !v)}>
+              {preview ? "✏️ 편집" : "👁 미리보기"}
+            </button>
+          )}
         </div>
-        <div className="modal-body">
-          {tab === "content" && <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="배운 내용을 자유롭게 적어보세요. 줄 앞에 '- '를 붙이면 목록이 돼요." />}
+        <div className="modal-body md-editor-body">
+          {tab === "content" && !preview && (
+            <>
+              <MarkdownToolbar taRef={taRef} value={body} onChange={setBody} allEntryTitles={allEntryTitles} />
+              <textarea
+                ref={taRef}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={"# 제목으로 시작해보세요\n\n**굵게**, *기울임*, ~~취소선~~\n- 목록 항목\n- [ ] 할 일 체크박스\n> 인용문\n---\n코드: `const x = 1`"}
+                className="md-textarea"
+              />
+            </>
+          )}
+          {tab === "content" && preview && <MarkdownPreview text={body} onWikiLink={onWikiLink} />}
           {tab === "files" && (
             <div>
               <label className="file-drop">파일 이름으로 첨부 추가
@@ -2327,8 +2747,10 @@ function EntryModal({ node, entryId, onClose, onSave, onDelete }: {
           }} placeholder="태그 입력 후 Enter" />
         </div>
         <div className="modal-foot entry-foot">
-          <div>
+          <div className="entry-foot-left">
             {existing && <button className="btn-text danger" onClick={() => onDelete(node.id, existing.id)}>🗑️ 삭제</button>}
+            <button type="button" className="btn-text export-md-btn" title="마크다운 파일로 내보내기" onClick={handleExportMd}>⬇ .md</button>
+            <button type="button" className="btn-text obsidian-btn" title="Obsidian으로 열기" onClick={handleObsidian}>🟣 Obsidian</button>
           </div>
           <div className="modal-actions">
             <button className="btn-text" onClick={onClose}>취소</button>
@@ -2392,7 +2814,7 @@ function CategoryModal({ leaf, emoji, parentName, onEmojiPick, onClose, onSave }
             <b>이모지 고르기</b>
           </button>
           <label className={`category-name-field ${focused ? "active" : ""}`}>
-            <span className="category-field-label">{leaf ? "기록함 이름" : "카테고리 이름"}</span>
+            <span className="category-field-label">{"폴더 이름"}</span>
             <input
               value={name}
               onFocus={() => setFocused(true)}
@@ -2428,7 +2850,7 @@ function CategoryModal({ leaf, emoji, parentName, onEmojiPick, onClose, onSave }
         {leaf && (
           <div className="category-entry-fields">
             <div className="modal-sub category-entry-sub">
-              <input className="modal-title-input" value={entryTitle} onChange={(e) => setEntryTitle(e.target.value)} placeholder="첫 기록 제목을 적어주세요" />
+              <input className="modal-title-input" value={entryTitle} onChange={(e) => setEntryTitle(e.target.value)} placeholder="첫 노트 제목을 적어주세요" />
               <input className="date-input" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
             </div>
             <div className="modal-tabs">
@@ -2453,7 +2875,7 @@ function CategoryModal({ leaf, emoji, parentName, onEmojiPick, onClose, onSave }
             </div>
           </div>
         )}
-        <p className="modal-hint">{parentName ? `${parentName} 아래에 추가합니다` : "새 대분류 카테고리를 추가합니다"}</p>
+        <p className="modal-hint">{parentName ? `${parentName} 아래에 추가합니다` : "새 최상위 폴더를 추가합니다"}</p>
         <div className="modal-foot">
           <div />
           <button className="btn-text" onClick={onClose}>취소</button>
@@ -2572,6 +2994,20 @@ function SettingsPanel({ settings, setSettings, onClose }: {
           <section className="sp-section">
             <h3>레이아웃</h3>
             <Range label="사이드바 기본 폭" value={settings.sidebarWidth} min={200} max={600} step={10} onChange={(value) => update("sidebarWidth", value)} />
+          </section>
+          <section className="sp-section">
+            <h3>🟣 Obsidian 연동</h3>
+            <label className="sp-vault-label">
+              볼트(Vault) 이름
+              <input
+                type="text"
+                className="sp-vault-input"
+                value={settings.obsidianVault}
+                onChange={(e) => update("obsidianVault", e.target.value)}
+                placeholder="예: My Vault (비워두면 기본 볼트)"
+              />
+            </label>
+            <p className="sp-vault-hint">노트 편집 창의 '🟣 Obsidian' 버튼이 이 볼트로 연결됩니다</p>
           </section>
         </div>
       </aside>

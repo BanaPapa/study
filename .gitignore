@@ -13,3 +13,6 @@ skills-lock.json
 .agents/
 .claude/
 .gstack/
+
+.vercel
+.env*

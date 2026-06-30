@@ -3314,3 +3314,294 @@ body.sb-resizing .app-shell {
   40%      { transform: scale(1.12, .85); }
   70%      { transform: scale(.94, 1.06); }
 }
+
+/* ── 마크다운 툴바 ───────────────────────────── */
+.md-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.tb {
+  padding: 3px 7px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background .12s, color .12s;
+  min-width: 26px;
+  line-height: 1.4;
+}
+.tb:hover { background: var(--accent-soft); color: var(--accent); }
+.tb.mono { font-family: monospace; font-size: 11px; }
+.tb-sep { width: 1px; height: 14px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+
+/* ── 마크다운 textarea ─────────────────────── */
+.md-editor-body {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+}
+.md-textarea {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 14px 16px;
+  font-size: var(--body-font-size);
+  line-height: 1.7;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font);
+}
+
+/* ── 마크다운 미리보기 ────────────────────── */
+.md-preview {
+  flex: 1;
+  padding: 14px 16px;
+  overflow-y: auto;
+  line-height: 1.7;
+  color: var(--fg);
+  font-size: var(--body-font-size);
+}
+.md-preview .md-h { font-weight: 700; margin: 0; }
+.md-preview .md-h1 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 6px; }
+.md-preview .md-h2 { font-size: 1.2em; margin-bottom: 4px; }
+.md-preview .md-h3 { font-size: 1.05em; margin-bottom: 3px; }
+.md-preview .md-p { margin: 4px 0; }
+.md-preview .md-ul, .md-preview .md-ol { margin: 4px 0 4px 20px; }
+.md-preview .md-ul li, .md-preview .md-ol li { margin: 2px 0; }
+.md-preview .md-bq { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--muted); margin: 6px 0; font-style: italic; }
+.md-preview .md-pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-family: monospace; font-size: 0.88em; overflow-x: auto; margin: 6px 0; }
+.md-preview .md-hr { border: none; border-top: 2px solid var(--border); margin: 10px 0; }
+.md-preview .md-check { display: flex; align-items: flex-start; gap: 7px; margin: 3px 0; }
+.md-preview .md-check input[type=checkbox] { margin-top: 4px; accent-color: var(--accent); }
+.md-preview .md-gap { height: 6px; }
+.md-preview .md-ic { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: monospace; font-size: 0.88em; }
+.md-preview strong { font-weight: 700; }
+.md-preview em { font-style: italic; }
+.md-preview del { text-decoration: line-through; opacity: 0.6; }
+
+/* ── 미리보기 토글 버튼 ─────────────────── */
+.preview-toggle-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all .12s;
+  flex-shrink: 0;
+}
+.preview-toggle-btn:hover, .preview-toggle-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── 노트 모달 푸터 ─────────────────────── */
+.entry-foot-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.export-md-btn, .obsidian-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  transition: all .12s;
+  font-weight: 600;
+}
+.export-md-btn:hover { background: var(--mint-soft); color: oklch(58% 0.13 165); border-color: oklch(70% 0.13 165); }
+.obsidian-btn:hover { background: oklch(94% 0.04 285); color: oklch(48% 0.14 285); border-color: oklch(70% 0.14 285); }
+
+/* ── 설정 패널 Obsidian 입력 ─────────────── */
+.sp-vault-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--fg);
+}
+.sp-vault-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--fg);
+  outline: none;
+  transition: border-color .15s;
+}
+.sp-vault-input:focus { border-color: var(--accent); }
+.sp-vault-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+/* ── 마크다운 위키링크 ─────────────────────── */
+.md-wikilink {
+  display: inline;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid oklch(from var(--accent) l c h / 0.25);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 0.88em;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .12s;
+}
+.md-wikilink:hover { background: oklch(from var(--accent) l c h / 0.22); }
+
+/* ── 마크다운 표 ─────────────────────────── */
+.md-preview .md-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 0.9em;
+}
+.md-preview .md-table th,
+.md-preview .md-table td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  text-align: left;
+}
+.md-preview .md-table th {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+.md-preview .md-table tr:hover td { background: oklch(from var(--accent) l c h / 0.05); }
+
+/* ── 툴바 링크 피커 ──────────────────────── */
+.md-toolbar-wrap { display: flex; flex-direction: column; flex-shrink: 0; }
+.tb-link.active { background: var(--accent-soft); color: var(--accent); }
+.link-picker {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow: hidden;
+}
+.link-picker-search {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface-2);
+  color: var(--fg);
+  outline: none;
+}
+.link-picker-search:focus { border-color: var(--accent); }
+.link-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  max-height: 140px;
+}
+.link-picker-item {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background .1s;
+}
+.link-picker-item:hover { background: var(--accent-soft); color: var(--accent); }
+.link-picker-empty { font-size: 12px; color: var(--muted); padding: 4px 6px; }
+
+/* ── 사이드바 뷰 탭 ──────────────────────── */
+.sidebar-view-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.svt {
+  flex: 1;
+  padding: 5px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--muted);
+  transition: background .12s, color .12s;
+}
+.svt:hover { background: var(--surface-2); }
+.svt.active { background: var(--accent-soft); color: var(--accent); }
+
+/* ── 그래프 뷰 ───────────────────────────── */
+.graph-wrap {
+  margin: 0 12px 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.graph-svg { width: 100%; height: auto; display: block; }
+.graph-hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 12px 10px;
+  line-height: 1.6;
+}
+.graph-hint code { background: var(--surface-2); padding: 2px 6px; border-radius: 5px; font-size: 12px; }
+.graph-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.graph-empty-hint { font-size: 13px; margin-top: 8px; }
+.graph-empty-hint code { background: var(--surface-2); padding: 2px 6px; border-radius: 5px; }
+
+/* ── 백링크 섹션 ─────────────────────────── */
+.backlinks-section { margin-top: 16px; }
+.backlinks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 24px;
+}
+.backlink-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .12s, background .12s;
+}
+.backlink-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+.backlink-folder { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.backlink-title { font-size: 14px; font-weight: 600; color: var(--fg); }

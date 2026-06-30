@@ -2938,6 +2938,7 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
   const valueRef = useRef(value);
   const [hrCtx, setHrCtx] = useState<{ el: HTMLElement; x: number; y: number } | null>(null);
   const [tableCtx, setTableCtx] = useState<{ table: HTMLElement; td: HTMLElement; x: number; y: number } | null>(null);
+  const [preCtx, setPreCtx] = useState<{ el: HTMLElement; x: number; y: number } | null>(null);
   const colResizeRef = useRef<{ ths: HTMLElement[]; idx: number; startX: number; startWidths: number[] } | null>(null);
 
   useEffect(() => {
@@ -2945,6 +2946,7 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
       const t = e.target as HTMLElement;
       if (!t.closest('.hr-ctx')) setHrCtx(null);
       if (!t.closest('.table-ctx')) setTableCtx(null);
+      if (!t.closest('.pre-ctx')) setPreCtx(null);
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
@@ -2958,6 +2960,16 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
       setTableCtx({ table: tableEl, td: tdEl, x: rect.left, y: Math.max(4, rect.top - 42) });
     } else if (!el?.closest('.table-ctx')) {
       setTableCtx(null);
+    }
+  };
+
+  const updatePreCtx = (el: HTMLElement | null) => {
+    const preEl = el?.closest('pre') as HTMLElement | null;
+    if (preEl && divRef.current?.contains(preEl)) {
+      const rect = preEl.getBoundingClientRect();
+      setPreCtx({ el: preEl, x: rect.left, y: Math.max(4, rect.top - 36) });
+    } else if (!el?.closest('.pre-ctx')) {
+      setPreCtx(null);
     }
   };
 
@@ -3038,6 +3050,7 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
 
   const handleEditorMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (colResizeRef.current) return;
+    if (e.buttons !== 0) return;
     const target = e.target as HTMLElement;
     const cell = target.closest('td, th') as HTMLElement | null;
     if (cell && divRef.current?.contains(cell)) {
@@ -3132,6 +3145,21 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
     const node = (range.commonAncestorContainer.nodeType === 3
       ? range.commonAncestorContainer.parentElement
       : range.commonAncestorContainer) as HTMLElement | null;
+
+    // Backspace/Delete in empty code block → remove entire pre
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      const preEl = node?.closest('pre');
+      if (preEl && divRef.current?.contains(preEl)) {
+        const text = (preEl.textContent ?? '').replace(/\n/g, '');
+        if (text === '' && sel.isCollapsed) {
+          e.preventDefault();
+          preEl.remove();
+          setPreCtx(null);
+          sync();
+          return;
+        }
+      }
+    }
 
     // Ctrl+Shift+> / < → 글씨 크기 1px씩 증감 (선택 영역 유지)
     if (e.ctrlKey && e.shiftKey && (e.key === '>' || e.key === '<')) {
@@ -3296,6 +3324,7 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
     } else {
       setHrCtx(null);
       updateTableCtx(target);
+      updatePreCtx(target);
     }
     if (target.classList.contains('md-wiki') && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -3311,6 +3340,7 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
       ? r.commonAncestorContainer.parentElement
       : r.commonAncestorContainer) as HTMLElement | null;
     updateTableCtx(el);
+    updatePreCtx(el);
   };
 
   return (
@@ -3380,6 +3410,18 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
           <button type="button" className="hr-ctx-btn table-ctx-btn" title="오른쪽에 열 추가" onClick={addColRight}>+ 열</button>
           <button type="button" className="hr-ctx-btn table-ctx-btn hr-ctx-del" title="열 삭제" onClick={deleteCol}>− 열</button>
           <button type="button" className="hr-ctx-btn table-ctx-btn" title="열 너비 균등" onClick={equalizeColWidths}>열↔</button>
+          <span className="hr-ctx-sep" />
+          <button type="button" className="hr-ctx-btn table-ctx-btn hr-ctx-del" title="표 전체 삭제" onClick={() => { tableCtx.table.remove(); sync(); setTableCtx(null); }}>표 삭제</button>
+        </div>
+      )}
+      {preCtx && (
+        <div
+          className="hr-ctx pre-ctx"
+          style={{ position: 'fixed', top: preCtx.y, left: preCtx.x, zIndex: 9999 }}
+          onMouseDown={e => e.preventDefault()}
+        >
+          <span className="hr-ctx-label">코드블록</span>
+          <button type="button" className="hr-ctx-btn hr-ctx-del" onClick={() => { preCtx.el.remove(); sync(); setPreCtx(null); }}>삭제</button>
         </div>
       )}
     </div>

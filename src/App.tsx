@@ -2788,8 +2788,21 @@ function WysiwygToolbar({ divRef, sync, allEntryTitles }: {
     focus();
     const sel = window.getSelection();
     if (!sel?.rangeCount) return;
+    const hadSelection = !sel.isCollapsed;
     const txt = sel.isCollapsed ? placeholder : sel.toString();
-    document.execCommand('insertHTML', false, `<span class="${className}">${esc(txt)}</span>`);
+    const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
+    document.execCommand('insertHTML', false, `<span id="${tmpId}" class="${className}">${esc(txt)}</span>`);
+    const span = divRef.current?.querySelector(`#${tmpId}`);
+    if (span) {
+      span.removeAttribute('id');
+      if (hadSelection) {
+        const r = document.createRange();
+        r.selectNodeContents(span);
+        const s = window.getSelection();
+        s?.removeAllRanges();
+        s?.addRange(r);
+      }
+    }
     sync();
   };
 
@@ -2931,21 +2944,40 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
     // Ctrl+Shift+> → 크게
     if (e.ctrlKey && e.shiftKey && e.key === '>') {
       e.preventDefault();
+      const hadSel = !sel.isCollapsed;
       const txt = sel.isCollapsed ? '큰 텍스트' : sel.toString();
-      document.execCommand('insertHTML', false, `<span class="md-big">${esc(txt)}</span>`);
+      const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
+      document.execCommand('insertHTML', false, `<span id="${tmpId}" class="md-big">${esc(txt)}</span>`);
+      const span = divRef.current?.querySelector(`#${tmpId}`);
+      if (span) { span.removeAttribute('id'); if (hadSel) { const r = document.createRange(); r.selectNodeContents(span); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); } }
       sync();
       return;
     }
     // Ctrl+Shift+< → 작게
     if (e.ctrlKey && e.shiftKey && e.key === '<') {
       e.preventDefault();
+      const hadSel = !sel.isCollapsed;
       const txt = sel.isCollapsed ? '작은 텍스트' : sel.toString();
-      document.execCommand('insertHTML', false, `<span class="md-small">${esc(txt)}</span>`);
+      const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
+      document.execCommand('insertHTML', false, `<span id="${tmpId}" class="md-small">${esc(txt)}</span>`);
+      const span = divRef.current?.querySelector(`#${tmpId}`);
+      if (span) { span.removeAttribute('id'); if (hadSel) { const r = document.createRange(); r.selectNodeContents(span); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); } }
       sync();
       return;
     }
 
     if (e.key !== 'Enter') return;
+
+    // 코드 요소 안에서 Shift+Enter → 코드 안에 줄바꿈 삽입 (코드창 유지)
+    if (e.shiftKey) {
+      const codeEl = node?.closest('code');
+      if (codeEl && divRef.current?.contains(codeEl)) {
+        e.preventDefault();
+        document.execCommand('insertText', false, '\n');
+        sync();
+        return;
+      }
+    }
 
     // 인라인 요소(code, span) 안에서 Enter → 블록 밖에 새 단락으로 이동
     const inlineEl = node?.closest('code, span');
@@ -3017,6 +3049,16 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    if (target.tagName === 'HR') {
+      const s = window.getSelection();
+      if (s) {
+        const r = document.createRange();
+        r.setStartBefore(target);
+        r.setEndAfter(target);
+        s.removeAllRanges();
+        s.addRange(r);
+      }
+    }
     if (target.classList.contains('md-wiki') && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       onWikiLink?.(target.textContent || '');

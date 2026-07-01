@@ -595,7 +595,7 @@ body.sb-resizing .app-shell {
 .row.sel .mix-count { background: var(--surface-1); }
 .entry-count {
   flex: none;
-  font-size: 10px;
+  font-size: calc(var(--nav-font-size) - 1px);
   font-weight: 600;
   line-height: 1;
   color: var(--muted);

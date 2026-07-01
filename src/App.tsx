@@ -2819,20 +2819,53 @@ function WysiwygToolbar({ divRef, sync, allEntryTitles }: {
     focus();
     const sel = window.getSelection();
     if (!sel?.rangeCount) return;
+    const range = sel.getRangeAt(0);
     const hadSelection = !sel.isCollapsed;
-    const txt = sel.isCollapsed ? placeholder : sel.toString();
-    const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
-    document.execCommand('insertHTML', false, `<span id="${tmpId}" class="${className}">${esc(txt)}</span>`);
-    const span = divRef.current?.querySelector(`#${tmpId}`);
-    if (span) {
-      span.removeAttribute('id');
-      if (hadSelection) {
+
+    if (!hadSelection) {
+      const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
+      document.execCommand('insertHTML', false, `<span id="${tmpId}" class="${className}">${esc(placeholder)}</span>`);
+      divRef.current?.querySelector(`#${tmpId}`)?.removeAttribute('id');
+      sync();
+      return;
+    }
+
+    // Preserve HTML structure of the selection instead of using plain text
+    const frag = range.cloneContents();
+    const inspector = document.createElement('div');
+    inspector.appendChild(frag);
+    const BLOCK_TAGS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE']);
+    const hasTopBlocks = Array.from(inspector.childNodes).some(
+      n => n instanceof HTMLElement && BLOCK_TAGS.has(n.tagName)
+    );
+
+    if (!hasTopBlocks) {
+      // Inline selection: wrap in a single span
+      const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
+      document.execCommand('insertHTML', false, `<span id="${tmpId}" class="${className}">${inspector.innerHTML}</span>`);
+      const span = divRef.current?.querySelector(`#${tmpId}`);
+      if (span) {
+        span.removeAttribute('id');
         const r = document.createRange();
         r.selectNodeContents(span);
-        const s = window.getSelection();
-        s?.removeAllRanges();
-        s?.addRange(r);
+        sel.removeAllRanges();
+        sel.addRange(r);
       }
+    } else {
+      // Multi-block: wrap each block's inner content individually to preserve structure
+      const parts: string[] = [];
+      inspector.childNodes.forEach(child => {
+        if (child instanceof HTMLElement && BLOCK_TAGS.has(child.tagName)) {
+          const outer = child.cloneNode(false) as HTMLElement;
+          outer.innerHTML = `<span class="${className}">${child.innerHTML}</span>`;
+          parts.push(outer.outerHTML);
+        } else {
+          const tmp = document.createElement('div');
+          tmp.appendChild(child.cloneNode(true));
+          parts.push(`<span class="${className}">${tmp.innerHTML}</span>`);
+        }
+      });
+      document.execCommand('insertHTML', false, parts.join(''));
     }
     sync();
   };
@@ -3176,17 +3209,40 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
         sel.removeAllRanges();
         sel.addRange(r);
       } else {
-        const txt = sel.toString();
         const newSize = 14 + dir;
-        const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
-        document.execCommand('insertHTML', false, `<span id="${tmpId}" class="md-fs" style="font-size:${newSize}px">${esc(txt)}</span>`);
-        const span = divRef.current?.querySelector(`#${tmpId}`) as HTMLElement | null;
-        if (span) {
-          span.removeAttribute('id');
-          const r = document.createRange();
-          r.selectNodeContents(span);
-          sel.removeAllRanges();
-          sel.addRange(r);
+        const style = `class="md-fs" style="font-size:${newSize}px"`;
+        const frag2 = range.cloneContents();
+        const inspector2 = document.createElement('div');
+        inspector2.appendChild(frag2);
+        const BLOCK_TAGS2 = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE']);
+        const hasTopBlocks2 = Array.from(inspector2.childNodes).some(
+          n => n instanceof HTMLElement && BLOCK_TAGS2.has(n.tagName)
+        );
+        if (!hasTopBlocks2) {
+          const tmpId = `tmp-${Math.random().toString(36).slice(2)}`;
+          document.execCommand('insertHTML', false, `<span id="${tmpId}" ${style}>${inspector2.innerHTML}</span>`);
+          const span = divRef.current?.querySelector(`#${tmpId}`) as HTMLElement | null;
+          if (span) {
+            span.removeAttribute('id');
+            const r = document.createRange();
+            r.selectNodeContents(span);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        } else {
+          const parts: string[] = [];
+          inspector2.childNodes.forEach(child => {
+            if (child instanceof HTMLElement && BLOCK_TAGS2.has(child.tagName)) {
+              const outer = child.cloneNode(false) as HTMLElement;
+              outer.innerHTML = `<span ${style}>${child.innerHTML}</span>`;
+              parts.push(outer.outerHTML);
+            } else {
+              const tmp = document.createElement('div');
+              tmp.appendChild(child.cloneNode(true));
+              parts.push(`<span ${style}>${tmp.innerHTML}</span>`);
+            }
+          });
+          document.execCommand('insertHTML', false, parts.join(''));
         }
       }
       sync();

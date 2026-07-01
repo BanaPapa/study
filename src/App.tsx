@@ -3496,8 +3496,9 @@ function WysiwygEditor({ value, onChange, placeholder, onWikiLink, allEntryTitle
       return;
     }
 
-    // 인라인 요소(code, span) 안에서 Enter → 블록 밖에 새 단락으로 이동
-    const inlineEl = node?.closest('code, span');
+    // 인라인 코드 안에서 Enter → 블록 밖에 새 단락으로 이동
+    // (일반 span, 예: 글씨 크기 변경)은 제외 — 그 안에서는 평범한 줄바꿈이 되어야 함
+    const inlineEl = node?.closest('code');
     if (inlineEl && inlineEl !== divRef.current && divRef.current?.contains(inlineEl)) {
       e.preventDefault();
       const blockEl = inlineEl.closest('p, li, blockquote');

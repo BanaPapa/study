@@ -2374,7 +2374,7 @@ body.sb-resizing .app-shell {
 }
 
 .emoji-picker {
-  width: min(48vw, 560px);
+  width: min(62vw, 728px);
   height: min(64vh, 600px);
   display: flex;
   flex-direction: column;
@@ -2437,7 +2437,8 @@ body.sb-resizing .app-shell {
   grid-auto-rows: max-content;
   align-content: start;
   gap: 3px;
-  padding-right: 4px;
+  padding-right: 10px;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   animation: emojiDrop .16s ease-out both;
 }

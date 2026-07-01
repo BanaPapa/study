@@ -2801,8 +2801,18 @@ function adjustFontSize(root: HTMLElement, delta: number): boolean {
   const range = sel.getRangeAt(0);
   if (!root.contains(range.commonAncestorContainer)) return false;
 
-  const startNode = range.startContainer;
-  const startEl = (startNode.nodeType === 3 ? startNode.parentElement : startNode) as HTMLElement | null;
+  // 선택 시작 지점의 "실제 렌더링된 가장 안쪽 글자"의 크기를 측정한다.
+  // setStartBefore 로 복원된 선택은 startContainer 가 부모라서, 감싼 span 안쪽까지
+  // 내려가 측정하지 않으면 매번 같은 값이 나와 크기가 더 이상 변하지 않는다.
+  let refNode: Node | null = range.startContainer;
+  if (refNode.nodeType === 1) {
+    const el = refNode as HTMLElement;
+    refNode = el.childNodes[range.startOffset] ?? el.childNodes[range.startOffset - 1] ?? el;
+  }
+  while (refNode && refNode.nodeType === 1 && (refNode as HTMLElement).firstChild) {
+    refNode = (refNode as HTMLElement).firstChild;
+  }
+  const startEl = (refNode && refNode.nodeType === 3 ? refNode.parentElement : refNode) as HTMLElement | null;
   const base = startEl ? parseFloat(getComputedStyle(startEl).fontSize) : 14;
   const newSize = Math.max(8, Math.min(80, Math.round(base) + delta));
 

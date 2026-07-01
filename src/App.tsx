@@ -2296,10 +2296,11 @@ function ProfileView({
           <span>구글드라이브로 동기화되는 옵시디언 볼트</span>
           <b>{statusLabel}</b>
           <p>
-            데스크탑 Chromium 계열 브라우저(Chrome, Edge, Brave, Opera 등)에서 옵시디언 볼트 폴더(구글드라이브 안의 폴더)를 한 번 연결하면,
+            데스크탑 Chromium 계열 브라우저(Chrome, Edge, Opera 등)에서 옵시디언 볼트 폴더(구글드라이브 안의 폴더)를 한 번 연결하면,
             노트가 저장될 때마다 볼트 안의 "{VAULT_SUBFOLDER}" 하위 폴더로 .md 파일이 자동으로 써집니다.
             나머지는 구글드라이브가 다른 PC로 전파해줘요. 앱 → 볼트 방향의 단방향 동기화이며,
             "{VAULT_SUBFOLDER}" 폴더 밖의 다른 파일은 건드리지 않습니다.
+            (Brave는 기본적으로 이 기능이 꺼져 있어요 — brave://flags에서 "File System Access API"를 켠 뒤 재시작하면 사용할 수 있습니다.)
           </p>
           {vaultError && <p className="vault-error">⚠️ {vaultError}</p>}
           <div className="vault-actions">

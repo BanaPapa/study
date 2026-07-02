@@ -2552,7 +2552,7 @@ function MobileShell(props: {
           }}>
             <div className="search-hit-path">{pathTo(props.nodes, node.id).map((item) => item.name).join(" › ")}</div>
             <div className="search-hit-title">{entry.title}</div>
-            <div className="search-hit-body">{entry.body.replace(/^[-*]\s*/gm, "").replace(/\n+/g, " ").slice(0, 80)}</div>
+            <div className="search-hit-body">{mdToSummaryLines(entry.body, 4).join(' ').slice(0, 80)}</div>
             <div className="search-hit-foot"><span>{fmt(entry.date)}</span>{entry.tags.map((tag) => <span className="tag-pill" key={tag}>#{tag}</span>)}</div>
           </button>
         )) : <MobileEmpty emoji="🔍" title="결과가 없어요" body={`'${props.query}'와 관련된 기록을 찾지 못했어요`} />}
@@ -2869,7 +2869,7 @@ function MobileEntryCard({ entry, onDouble, longPress, longPressHandlers }: {
   return (
     <div className="ecard" data-eid={entry.id} onDoubleClick={onDouble} {...longPressHandlers(longPress)}>
       <h3><span className="tk">✓</span>{entry.title}</h3>
-      <div className="bd">{entry.body.split("\n").map((line, index) => line.startsWith("- ") ? <li key={index}>{line.slice(2)}</li> : <div key={index}>{line}</div>)}</div>
+      <div className="bd"><MarkdownPreview text={entry.body} /></div>
       {entry.attachments.length ? <div className="att">{entry.attachments.map((attachment) => <span className={`chip ${attachment.type}`} key={attachment.id}>{icon[attachment.type]} {attachment.name}</span>)}</div> : null}
       {entry.tags.length ? <div className="tags-row">{entry.tags.map((tag) => <span className="tag-pill" key={tag}>#{tag}</span>)}</div> : null}
     </div>

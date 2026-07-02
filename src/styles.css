@@ -44,6 +44,37 @@
 .login-box h1 { margin: 0 0 8px; font-size: 24px; }
 .login-box p { margin: 0 0 28px; color: var(--muted); font-size: 14px; line-height: 1.7; }
 
+.sp-backup-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.sp-backup-btn {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.sp-backup-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+.sp-backup-label { font-size: 11.5px; font-weight: 800; color: var(--muted); margin-bottom: 2px; }
+.sp-backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+}
+.sp-backup-row button {
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .inapp-warn {
   display: flex;
   flex-direction: column;

@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, JSX, MouseEvent, ReactNode } from "react";
-import { useQuery, useMutation, useConvexAuth } from "convex/react";
+import { useQuery, useMutation, useConvexAuth, useConvex } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 type AttachmentType = "doc" | "video" | "link";
 type ThemeName = "lavender" | "ocean" | "forest" | "sunset" | "rose" | "dark" | "dark-ocean" | "dark-forest" | "dark-warm";
@@ -786,6 +787,45 @@ function loadSettings() {
 
 const bootData = stripRecordBooks(loadData());
 
+// ── 로컬 자동 백업 ─────────────────────────────────────
+// 서버 데이터가 로컬을 덮어쓰기 직전의 로컬 데이터를 보관한다(최근 5개).
+// 동기화 사고가 나도 설정 > 데이터 백업에서 되돌릴 수 있다.
+const BACKUP_KEY = `${STORE_KEY}.backups`;
+type LocalBackup = { savedAt: number; data: string };
+
+function loadLocalBackups(): LocalBackup[] {
+  try {
+    const raw = localStorage.getItem(BACKUP_KEY);
+    return raw ? (JSON.parse(raw) as LocalBackup[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalBackup(incomingServerData: string) {
+  try {
+    const current = localStorage.getItem(STORE_KEY);
+    if (!current || current === incomingServerData) return;
+    const backups = loadLocalBackups();
+    if (backups[0]?.data === current) return;
+    const next = [{ savedAt: Date.now(), data: current }, ...backups].slice(0, 5);
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(next));
+  } catch {
+    // 백업 실패(용량 초과 등)가 동기화 자체를 막아서는 안 된다
+  }
+}
+
+function countEntriesInJson(json: string): number {
+  try {
+    const nodes = JSON.parse(json) as StudyNode[];
+    const count = (ns: StudyNode[]): number =>
+      ns.reduce((acc, n) => acc + (n.entries?.length ?? 0) + count(n.children ?? []), 0);
+    return count(nodes);
+  } catch {
+    return 0;
+  }
+}
+
 function findNode(nodes: StudyNode[], nodeId?: string): { node: StudyNode; parent?: StudyNode; list: StudyNode[] } | null {
   if (!nodeId) return null;
   for (const node of nodes) {
@@ -1105,6 +1145,7 @@ function App() {
   const serverData = useQuery(api.nodes.get);
   const saveNodesMutation = useMutation(api.nodes.save);
   const lastSavedRef = useRef<string>("");
+  const applyingServerRef = useRef(false);
 
   const [nodes, setNodes] = useState<StudyNode[]>(bootData);
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -1170,6 +1211,10 @@ function App() {
     // 로컬 데이터가 서버로 영영 올라가지 않는 버그가 생긴다. (그래서 여기서 그냥 빠진다)
     if (serverData === null) return;
     if (serverData === lastSavedRef.current) return;
+    // 서버 데이터로 로컬을 덮어쓰기 전에, 현재 로컬 데이터를 자동 백업해 둔다.
+    // 동기화 사고가 나도 설정 > 백업에서 되돌릴 수 있다.
+    saveLocalBackup(serverData);
+    applyingServerRef.current = true;
     lastSavedRef.current = serverData;
     setNodes(stripRecordBooks(JSON.parse(serverData) as StudyNode[]));
   }, [serverData, isAuthenticated]);
@@ -1178,10 +1223,19 @@ function App() {
   useEffect(() => {
     const json = JSON.stringify(nodes);
     localStorage.setItem(STORE_KEY, json);
-    if (!isAuthenticated || json === lastSavedRef.current) return;
+    // 서버 첫 응답(serverData !== undefined)을 받기 전에는 절대 업로드하지 않는다.
+    // 새 기기의 초기 데이터가 서버의 실제 데이터를 덮어쓰는 사고를 막는 핵심 가드다.
+    if (!isAuthenticated || serverData === undefined) return;
+    // 서버 데이터를 setNodes 로 적용하는 중(리렌더 전)에는 nodes 가 아직 옛 값이므로
+    // 업로드하면 방금 받은 서버 데이터를 옛 로컬 값으로 되덮어쓴다. 적용 완료까지 대기.
+    if (applyingServerRef.current) {
+      if (json === lastSavedRef.current) applyingServerRef.current = false;
+      return;
+    }
+    if (json === lastSavedRef.current) return;
     lastSavedRef.current = json;
     saveNodesMutation({ data: json }).catch(() => {});
-  }, [nodes, isAuthenticated]);
+  }, [nodes, isAuthenticated, serverData]);
 
   const runVaultSync = async (handle?: any) => {
     const h = handle ?? vaultHandleRef.current;
@@ -1698,6 +1752,16 @@ function App() {
           settings={settings}
           setSettings={setSettings}
           onClose={() => setModal(null)}
+          nodes={nodes}
+          onRestore={(json) => {
+            try {
+              const parsed = stripRecordBooks(JSON.parse(json) as StudyNode[]);
+              setNodes(parsed);
+              say("데이터를 복원했어요! 서버에도 자동 저장됩니다 ✅");
+            } catch {
+              say("복원 실패: 올바른 데이터 형식이 아니에요");
+            }
+          }}
         />
       )}
       {modal?.kind === "confirmDelete" && (
@@ -4407,12 +4471,52 @@ function EmojiPicker({ onPick, onClose }: { onPick: (emoji: string) => void; onC
   );
 }
 
-function SettingsPanel({ settings, setSettings, onClose }: {
+function SettingsPanel({ settings, setSettings, onClose, nodes, onRestore }: {
   settings: Settings;
   setSettings: (settings: Settings) => void;
   onClose: () => void;
+  nodes: StudyNode[];
+  onRestore: (json: string) => void;
 }) {
   const update = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings({ ...settings, [key]: value });
+  const convex = useConvex();
+  const serverHistory = useQuery(api.nodes.listHistory) ?? [];
+  const [localBackups] = useState(loadLocalBackups);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const fmtBackupTime = (ts: number) =>
+    new Date(ts).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const restoreLocal = (backup: LocalBackup) => {
+    if (!window.confirm(`${fmtBackupTime(backup.savedAt)} 백업(노트 ${countEntriesInJson(backup.data)}개)으로 되돌릴까요?\n현재 데이터는 서버 이력에 보관됩니다.`)) return;
+    onRestore(backup.data);
+    onClose();
+  };
+
+  const restoreServer = async (id: Id<"nodesHistory">, savedAt: number) => {
+    if (!window.confirm(`${fmtBackupTime(savedAt)} 서버 이력으로 되돌릴까요?\n현재 데이터는 서버 이력에 보관됩니다.`)) return;
+    const data = await convex.query(api.nodes.getHistoryItem, { id });
+    if (data) { onRestore(data); onClose(); }
+    else window.alert("이력을 불러오지 못했어요");
+  };
+
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify(nodes, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `monggle-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const importJson = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") { onRestore(reader.result); onClose(); }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="settings-overlay show">
       <div className="settings-scrim" onClick={onClose} />
@@ -4516,6 +4620,43 @@ function SettingsPanel({ settings, setSettings, onClose }: {
               />
             </label>
             <p className="sp-vault-hint">노트 편집 창의 '🟣 Obsidian' 버튼이 이 볼트로 연결됩니다</p>
+          </section>
+          <section className="sp-section">
+            <h3>💾 데이터 백업·복구</h3>
+            <div className="sp-backup-actions">
+              <button className="sp-backup-btn" onClick={exportJson}>⬇ JSON 내보내기</button>
+              <button className="sp-backup-btn" onClick={() => fileInputRef.current?.click()}>⬆ JSON 가져오기</button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ""; }}
+              />
+            </div>
+            {serverHistory.length > 0 && (
+              <div className="sp-backup-group">
+                <span className="sp-backup-label">서버 저장 이력 (자동)</span>
+                {serverHistory.slice(0, 8).map((h) => (
+                  <div className="sp-backup-row" key={h.id}>
+                    <span>{fmtBackupTime(h.savedAt)} · {Math.round(h.size / 1024)}KB</span>
+                    <button onClick={() => restoreServer(h.id, h.savedAt)}>복원</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {localBackups.length > 0 && (
+              <div className="sp-backup-group">
+                <span className="sp-backup-label">이 기기 자동 백업</span>
+                {localBackups.map((b) => (
+                  <div className="sp-backup-row" key={b.savedAt}>
+                    <span>{fmtBackupTime(b.savedAt)} · 노트 {countEntriesInJson(b.data)}개</span>
+                    <button onClick={() => restoreLocal(b)}>복원</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="sp-vault-hint">서버 이력은 저장할 때마다 자동으로 쌓이고(최근 20개), 기기 백업은 서버 데이터가 이 기기를 덮어쓰기 직전 상태를 보관해요(최근 5개).</p>
           </section>
         </div>
       </aside>

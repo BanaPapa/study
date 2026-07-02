@@ -1210,13 +1210,19 @@ function App() {
     // 이때 lastSavedRef를 건드리면 아래 "local → Convex" 효과가 업로드를 스킵해서
     // 로컬 데이터가 서버로 영영 올라가지 않는 버그가 생긴다. (그래서 여기서 그냥 빠진다)
     if (serverData === null) return;
-    if (serverData === lastSavedRef.current) return;
+    // stripRecordBooks 는 마이그레이션 과정에서 필드 순서를 바꿀 수 있어(예: 모든 노드에
+    // entries 를 추가) 원본 serverData 문자열과 절대 다시 같아지지 않는 경우가 있다.
+    // 그래서 반드시 "정규화한 뒤"의 문자열을 기준으로 비교·저장해야 한다 — 그렇지 않으면
+    // 아래 업로드 효과의 applyingServerRef 가드가 영원히 풀리지 않아 이후 저장이 전부
+    // 로컬에만 남고 서버로 올라가지 않는 조용한 동기화 중단이 생긴다.
+    const normalized = JSON.stringify(stripRecordBooks(JSON.parse(serverData) as StudyNode[]));
+    if (normalized === lastSavedRef.current) return;
     // 서버 데이터로 로컬을 덮어쓰기 전에, 현재 로컬 데이터를 자동 백업해 둔다.
     // 동기화 사고가 나도 설정 > 백업에서 되돌릴 수 있다.
     saveLocalBackup(serverData);
     applyingServerRef.current = true;
-    lastSavedRef.current = serverData;
-    setNodes(stripRecordBooks(JSON.parse(serverData) as StudyNode[]));
+    lastSavedRef.current = normalized;
+    setNodes(JSON.parse(normalized) as StudyNode[]);
   }, [serverData, isAuthenticated]);
 
   // local → Convex: 변경사항을 즉시 저장

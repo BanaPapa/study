@@ -1090,6 +1090,15 @@ async function syncNodesToVault(rootHandle: any, nodes: StudyNode[]): Promise<{ 
   return syncDirWithTree(appDir, tree);
 }
 
+// 모바일 뒤로가기용 보초(sentinel) history 항목이 없으면 하나 채워 넣는다.
+// 닫을 수 있는 화면(모달·시트·하위 화면)이 열릴 때마다 호출해, 뒤로가기가
+// 항상 앱 이탈 대신 popstate 로 들어오게 보장한다. 중복 push 는 하지 않는다.
+function ensureBackSentinel() {
+  if (!window.matchMedia("(max-width: 760px)").matches) return;
+  const state = window.history.state as { mongle?: boolean } | null;
+  if (!state?.mongle) window.history.pushState({ mongle: true }, "");
+}
+
 function App() {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { signOut } = useAuthActions();
@@ -1250,6 +1259,34 @@ function App() {
   }, [nodes]);
 
   useEffect(() => localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)), [settings]);
+
+  // 모바일 하드웨어 뒤로가기를 앱 내부 내비게이션으로 연결한다.
+  // history 에 보초(sentinel) 항목을 하나 두고, 뒤로가기(popstate)가 오면
+  // 열린 모달 → 모바일 시트/이전 화면 순으로 한 단계씩 닫고 보초를 다시 채운다.
+  // 홈에서 더 닫을 게 없으면 보초를 채우지 않아, 한 번 더 누르면 앱을 나간다.
+  const mobileBackRef = useRef<(() => boolean) | null>(null);
+  const modalOpenRef = useRef(false);
+  useEffect(() => { modalOpenRef.current = modal !== null; }, [modal]);
+  useEffect(() => { if (modal !== null) ensureBackSentinel(); }, [modal]);
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 760px)").matches) return;
+    ensureBackSentinel();
+    const onPop = () => {
+      if (modalOpenRef.current) {
+        setModal(null);
+        ensureBackSentinel();
+        return;
+      }
+      if (mobileBackRef.current?.()) {
+        ensureBackSentinel();
+        return;
+      }
+      say("한 번 더 누르면 앱을 나가요 👋");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.skin = settings.skin;
@@ -1609,6 +1646,7 @@ function App() {
         onSaveCategory={saveCategory}
         onDeleteNode={deleteNode}
         maxDepth={MAX_DEPTH}
+        backRef={mobileBackRef}
       />
 
       <div id="burst-fx" className="fx" />
@@ -2403,6 +2441,7 @@ function MobileShell(props: {
   onSaveCategory: (parentId: string | undefined, name: string, leaf: boolean, emoji: string, initialEntry?: StudyEntry) => void;
   onDeleteNode: (nodeId: string) => void;
   maxDepth: number;
+  backRef: React.MutableRefObject<(() => boolean) | null>;
 }) {
   const selected = findNode(props.nodes, props.selectedId)?.node;
   const [routeStack, setRouteStack] = useState<{ route: MobileRoute; selectedId?: string }[]>([]);
@@ -2465,6 +2504,20 @@ function MobileShell(props: {
       return stack.slice(0, -1);
     });
   };
+
+  // 하드웨어 뒤로가기 처리를 App 에 등록한다: 시트 → 검색 → 이전 화면 순으로
+  // 한 단계 닫고 true, 홈이라 더 닫을 게 없으면 false(→ 한 번 더 누르면 종료).
+  useEffect(() => {
+    props.backRef.current = () => {
+      if (sheet) { setSheet(null); return true; }
+      if (props.query) { props.setQuery(""); return true; }
+      if (routeStack.length > 0 || props.route !== "home") { goBack(); return true; }
+      return false;
+    };
+    // 닫을 수 있는 상태가 생기면 뒤로가기가 앱 이탈로 새지 않도록 보초를 보충한다.
+    if (sheet || props.query || routeStack.length > 0 || props.route !== "home") ensureBackSentinel();
+    return () => { props.backRef.current = null; };
+  });
 
   const openNode = (node: StudyNode) => {
     if (!hasChildren(node)) goTo("leaf", node.id);

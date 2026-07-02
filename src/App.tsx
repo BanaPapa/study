@@ -366,7 +366,6 @@ const emojiCategories: EmojiCategory[] = [
   }
 ];
 
-const emojis = emojiCategories[0].list;
 
 const defaultSettings: Settings = {
   skin: "monggle",
@@ -383,389 +382,9 @@ const defaultSettings: Settings = {
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const id = (prefix = "id") => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
-const entry = (
-  date: string,
-  title: string,
-  body: string,
-  attachments: Omit<Attachment, "id">[] = [],
-  tags: string[] = []
-): StudyEntry => ({
-  id: id("e"),
-  date,
-  title,
-  body,
-  attachments: attachments.map((a) => ({ ...a, id: id("a") })),
-  tags
-});
-
-const initialData = (): StudyNode[] => [
-  {
-    id: id("n"),
-    name: "코딩",
-    emoji: "💻",
-    colorIndex: 0,
-    open: true,
-    children: [
-      {
-        id: id("n"),
-        name: "알고리즘",
-        emoji: "🧩",
-        open: true,
-        children: [
-          {
-            id: id("n"),
-            name: "정렬",
-            emoji: "📑",
-            open: true,
-            children: [
-              {
-                id: id("n"),
-                name: "정렬 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-18", "퀵정렬 다시 정리", "피벗 선택과 파티션 과정을 직접 손으로 트레이싱.\n- 평균 O(n log n), 최악 O(n²)\n- 피벗을 랜덤/중앙값으로 잡으면 최악 회피", [
-                    { type: "doc", name: "quicksort.pdf" },
-                    { type: "video", name: "정렬 시각화 영상" }
-                  ], ["알고리즘", "정렬", "복잡도"]),
-                  entry("2026-06-04", "병합정렬 vs 퀵정렬", "안정 정렬이 필요한 경우 병합정렬, 메모리 아끼려면 퀵정렬.\n- 병합정렬은 항상 O(n log n)\n- 퀵정렬은 캐시 효율이 더 좋음", [
-                    { type: "doc", name: "compare-sort.md" }
-                  ], ["알고리즘", "정렬"])
-                ]
-              }
-            ]
-          },
-          {
-            id: id("n"),
-            name: "그래프",
-            emoji: "🕸️",
-            children: [
-              {
-                id: id("n"),
-                name: "탐색 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-11", "BFS/DFS 손코딩", "인접리스트로 그래프 구현 후 두 탐색 방식 직접 짜보기.\n- BFS는 큐, DFS는 스택(재귀)\n- 최단경로엔 BFS가 유리", [
-                    { type: "doc", name: "graph-notes.pdf" },
-                    { type: "link", name: "시각화 사이트 ↗", url: "#" }
-                  ], ["알고리즘", "그래프"]),
-                  entry("2026-05-29", "다익스트라 첫 시도", "우선순위 큐로 최단거리 갱신. 음수 가중치 불가한 이유 메모.", [], ["알고리즘", "최단경로"])
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        id: id("n"),
-        name: "자료구조",
-        emoji: "🗂️",
-        children: [
-          {
-            id: id("n"),
-            name: "트리와 힙",
-            emoji: "🌲",
-            children: [
-              {
-                id: id("n"),
-                name: "힙 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-08", "이진 힙 구현", "배열로 힙 구현, 부모/자식 인덱스 공식 정리.\n- 부모: (i-1)/2\n- 자식: 2i+1, 2i+2", [
-                    { type: "doc", name: "heap.js" }
-                  ], ["자료구조", "힙"])
-                ]
-              }
-            ]
-          },
-          {
-            id: id("n"),
-            name: "해시테이블",
-            emoji: "#️⃣",
-            children: [
-              { id: id("n"), name: "해시 기록함", emoji: "📘", leaf: true, entries: [] }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: id("n"),
-    name: "에이전트",
-    emoji: "🤖",
-    colorIndex: 1,
-    open: true,
-    children: [
-      {
-        id: id("n"),
-        name: "오픈클로",
-        emoji: "🐚",
-        children: [
-          {
-            id: id("n"),
-            name: "설치",
-            emoji: "📦",
-            children: [
-              {
-                id: id("n"),
-                name: "설치 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-02", "로컬 설치 & 첫 실행", "바이너리 받아서 PATH 등록, 첫 명령 실행까지 단계별 메모.", [
-                    { type: "doc", name: "install-log.md" }
-                  ], ["설정", "오픈클로"])
-                ]
-              }
-            ]
-          },
-          {
-            id: id("n"),
-            name: "플러그인",
-            emoji: "🧩",
-            children: [
-              { id: id("n"), name: "플러그인 기록함", emoji: "📘", leaf: true, entries: [] }
-            ]
-          }
-        ]
-      },
-      {
-        id: id("n"),
-        name: "헤르메스",
-        emoji: "🪽",
-        open: true,
-        children: [
-          {
-            id: id("n"),
-            name: "설정방법",
-            emoji: "⚙️",
-            children: [
-              {
-                id: id("n"),
-                name: "설정 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-15", "환경변수 & 토큰 세팅", "OD_TOKEN 발급 후 .env 에 등록. 데몬 wrapper 로만 호출하는 규칙 메모.", [
-                    { type: "doc", name: "setup-guide.md" }
-                  ], ["설정", "헤르메스"]),
-                  entry("2026-05-30", "멀티 인스턴스 설정", "포트 분리해서 인스턴스 두 개 띄워보기. 충돌 났던 이유는 동일 락파일 사용 때문.", [
-                    { type: "link", name: "트러블슈팅 노트 ↗", url: "#" }
-                  ], ["설정", "트러블슈팅"])
-                ]
-              }
-            ]
-          },
-          {
-            id: id("n"),
-            name: "개념정리",
-            emoji: "📘",
-            open: true,
-            children: [
-              {
-                id: id("n"),
-                name: "개념 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-19", "헤르메스 메시지 라우팅 개념", "메시지가 채널→큐→핸들러로 흐르는 구조를 그림으로 정리.\n- 멱등성(idempotency) 키로 중복 처리 방지\n- 재시도는 지수 백오프", [
-                    { type: "doc", name: "routing-diagram.png" },
-                    { type: "video", name: "개념 설명 영상" },
-                    { type: "link", name: "옵시디언 노트 ↗", url: "#" }
-                  ], ["개념정리", "메시징"]),
-                  entry("2026-06-13", "브로커 vs 브로커리스", "중앙 브로커 방식과 P2P 방식의 트레이드오프 비교 표 작성.", [
-                    { type: "doc", name: "compare.xlsx" }
-                  ], ["개념정리", "메시징"]),
-                  entry("2026-06-09", "용어 첫 정리", "토픽, 파티션, 컨슈머 그룹 같은 기본 용어부터 한 줄씩.", [
-                    { type: "link", name: "공식문서 ↗", url: "#" }
-                  ], ["개념정리", "헤르메스"]),
-                  entry("2026-05-27", "백프레셔 개념", "컨슈머가 못 따라갈 때 생산 속도를 조절하는 방법들 정리.", [
-                    { type: "doc", name: "backpressure.md" }
-                  ], ["개념정리", "메시징"])
-                ]
-              }
-            ]
-          },
-          {
-            id: id("n"),
-            name: "크론조작",
-            emoji: "⏰",
-            children: [
-              {
-                id: id("n"),
-                name: "크론 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-17", "크론 표현식 손에 익히기", "`*/5 * * * *` = 5분마다. 분/시/일/월/요일 순서 암기.", [], ["크론", "헤르메스"]),
-                  entry("2026-06-01", "타임존 이슈 해결", "서버 UTC vs 로컬 KST 차이로 새벽 작업이 안 돈 원인 추적.", [
-                    { type: "doc", name: "timezone-fix.md" }
-                  ], ["크론", "트러블슈팅"])
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: id("n"),
-    name: "개발",
-    emoji: "🛠️",
-    colorIndex: 2,
-    children: [
-      {
-        id: id("n"),
-        name: "프론트엔드",
-        emoji: "🎨",
-        children: [
-          {
-            id: id("n"),
-            name: "CSS",
-            emoji: "🎨",
-            children: [
-              {
-                id: id("n"),
-                name: "CSS 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-16", "CSS 컨테이너 쿼리", "부모 크기에 반응하는 레이아웃. 미디어쿼리보다 컴포넌트 친화적.", [
-                    { type: "video", name: "강의 클립" }
-                  ], ["프론트엔드", "CSS"]),
-                  entry("2026-06-05", "뷰 트랜지션 API", "페이지 전환에 네이티브 애니메이션 적용해보기.", [
-                    { type: "link", name: "MDN 문서 ↗", url: "#" }
-                  ], ["프론트엔드", "CSS"])
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        id: id("n"),
-        name: "백엔드",
-        emoji: "🔧",
-        children: [
-          {
-            id: id("n"),
-            name: "API",
-            emoji: "🔌",
-            children: [
-              {
-                id: id("n"),
-                name: "API 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-10", "레이트리밋 미들웨어", "토큰버킷 알고리즘으로 API 호출 제한 구현.\n- 버킷 용량과 보충 속도 분리\n- 사용자별 키로 분리 카운트", [
-                    { type: "doc", name: "rate-limit.ts" }
-                  ], ["백엔드", "API"])
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        id: id("n"),
-        name: "데이터베이스",
-        emoji: "🗄️",
-        children: [
-          {
-            id: id("n"),
-            name: "SQL",
-            emoji: "🗃️",
-            children: [
-              {
-                id: id("n"),
-                name: "SQL 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-07", "인덱스 실행계획 읽기", "EXPLAIN ANALYZE 결과에서 시퀀셜 스캔 vs 인덱스 스캔 구분하기.", [
-                    { type: "doc", name: "explain-notes.md" }
-                  ], ["데이터베이스", "SQL"]),
-                  entry("2026-05-26", "트랜잭션 격리수준", "Read Committed vs Repeatable Read 차이를 예제로 정리.", [], ["데이터베이스", "SQL"])
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: id("n"),
-    name: "어학",
-    emoji: "🌐",
-    colorIndex: 3,
-    children: [
-      {
-        id: id("n"),
-        name: "영어",
-        emoji: "🇺🇸",
-        children: [
-          {
-            id: id("n"),
-            name: "회화",
-            emoji: "💬",
-            children: [
-              {
-                id: id("n"),
-                name: "회화 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-06-12", "스몰톡 표현 모음", "미팅 시작 전 가볍게 쓸 수 있는 표현 10개 정리.", [
-                    { type: "video", name: "섀도잉 클립" }
-                  ], ["영어", "회화"])
-                ]
-              }
-            ]
-          },
-          {
-            id: id("n"),
-            name: "문법",
-            emoji: "📖",
-            children: [
-              {
-                id: id("n"),
-                name: "문법 기록함",
-                emoji: "📘",
-                leaf: true,
-                entries: [
-                  entry("2026-05-31", "가정법 정리", "if절 시제별 가정법 표 만들고 예문 5개씩 작성.", [
-                    { type: "doc", name: "grammar.pdf" }
-                  ], ["영어", "문법"])
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        id: id("n"),
-        name: "일본어",
-        emoji: "🇯🇵",
-        children: [
-          {
-            id: id("n"),
-            name: "한자",
-            emoji: "🈂️",
-            children: [
-              { id: id("n"), name: "한자 기록함", emoji: "📘", leaf: true, entries: [] }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-];
+// 새 사용자는 빈 상태로 시작한다. 예전의 대용량 데모 시드는 새 기기 첫 동기화 때
+// 서버 데이터를 오염시키는 원인이 되어 제거했다. (2026-07-02 데이터 사고 참고)
+const initialData = (): StudyNode[] => [];
 
 function loadData() {
   try {
@@ -1699,7 +1318,6 @@ function App() {
         onToggle={toggleNode}
         onRename={renameNode}
         onEmoji={(nodeId, emoji) => updateNode(nodeId, (node) => { node.emoji = emoji; })}
-        onAdd={openAddFor}
         onAddEntry={(nodeId) => setModal({ kind: "entry", nodeId })}
         onEditEntry={(nodeId, entryId) => setModal({ kind: "entry", nodeId, entryId })}
         onDeleteEntry={deleteEntry}
@@ -2504,7 +2122,6 @@ function MobileShell(props: {
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onEmoji: (id: string, emoji: string) => void;
-  onAdd: (id?: string) => void;
   onAddEntry: (id: string) => void;
   onEditEntry: (nodeId: string, entryId: string) => void;
   onDeleteEntry: (nodeId: string, entryId: string) => void;
@@ -2654,6 +2271,9 @@ function MobileShell(props: {
     <div className="view active" id="v-home">
       <div className="sec-h">내 카테고리</div>
       <div id="tree">
+        {props.nodes.length === 0 && (
+          <MobileEmpty emoji="🌱" title="첫 폴더를 만들어보세요" body="아래 버튼으로 공부 카테고리를 추가할 수 있어요" />
+        )}
         {props.nodes.map((node) => (
           <MobileTreeNode
             key={node.id}
@@ -2665,6 +2285,7 @@ function MobileShell(props: {
           />
         ))}
       </div>
+      <button className="btn-add-sub" onClick={() => openAddSheet(undefined)}><PlusIcon />새 폴더 추가</button>
     </div>
   );
 
@@ -3370,105 +2991,6 @@ function MarkdownPreview({ text, onWikiLink }: { text: string; onWikiLink?: (tit
     blocks.push(<p key={i} className="md-p">{parseInline(line, onWikiLink)}</p>); i++;
   }
   return <div className="md-preview">{blocks}</div>;
-}
-
-function MarkdownToolbar({ taRef, value, onChange, allEntryTitles }: {
-  taRef: { current: HTMLTextAreaElement | null };
-  value: string;
-  onChange: (v: string) => void;
-  allEntryTitles?: string[];
-}) {
-  const [showLinkPicker, setShowLinkPicker] = useState(false);
-  const [linkSearch, setLinkSearch] = useState('');
-
-  const wrap = (before: string, after: string, ph: string) => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart, e = ta.selectionEnd;
-    const sel = s !== e ? value.slice(s, e) : ph;
-    const next = value.slice(0, s) + before + sel + after + value.slice(e);
-    onChange(next);
-    setTimeout(() => { ta.focus(); ta.setSelectionRange(s + before.length, s + before.length + sel.length); }, 0);
-  };
-  const prefix = (pfx: string) => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart;
-    const ls = value.lastIndexOf('\n', s - 1) + 1;
-    const le = value.indexOf('\n', s);
-    const end = le === -1 ? value.length : le;
-    const line = value.slice(ls, end);
-    const has = line.startsWith(pfx);
-    const newLine = has ? line.slice(pfx.length) : pfx + line;
-    const next = value.slice(0, ls) + newLine + value.slice(end);
-    onChange(next);
-    setTimeout(() => { ta.focus(); const np = s + (has ? -pfx.length : pfx.length); ta.setSelectionRange(np, np); }, 0);
-  };
-  const insert = (text: string) => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart;
-    const next = value.slice(0, s) + text + value.slice(s);
-    onChange(next);
-    setTimeout(() => { ta.focus(); ta.setSelectionRange(s + text.length, s + text.length); }, 0);
-  };
-  const insertWikiLink = (title: string) => {
-    insert(`[[${title}]]`);
-    setShowLinkPicker(false);
-    setLinkSearch('');
-  };
-
-  const filteredTitles = (allEntryTitles ?? []).filter(t => t.toLowerCase().includes(linkSearch.toLowerCase())).slice(0, 12);
-
-  return (
-    <div className="md-toolbar-wrap">
-      <div className="md-toolbar">
-        <button type="button" className="tb" title="굵게 (**)" onClick={() => wrap('**', '**', '굵게')}><b>B</b></button>
-        <button type="button" className="tb" title="기울임 (*)" onClick={() => wrap('*', '*', '기울임')}><i>I</i></button>
-        <button type="button" className="tb" title="취소선 (~~)" onClick={() => wrap('~~', '~~', '취소선')}><s>S</s></button>
-        <span className="tb-sep" />
-        <button type="button" className="tb" title="크게 ({big})" onClick={() => wrap('{big}', '{/big}', '큰 텍스트')}>A+</button>
-        <button type="button" className="tb" title="작게 ({small})" onClick={() => wrap('{small}', '{/small}', '작은 텍스트')}>a-</button>
-        <span className="tb-sep" />
-        <button type="button" className="tb" title="제목 1 (#)" onClick={() => prefix('# ')}>H1</button>
-        <button type="button" className="tb" title="제목 2 (##)" onClick={() => prefix('## ')}>H2</button>
-        <button type="button" className="tb" title="제목 3 (###)" onClick={() => prefix('### ')}>H3</button>
-        <span className="tb-sep" />
-        <button type="button" className="tb" title="목록 (-)" onClick={() => prefix('- ')}>•≡</button>
-        <button type="button" className="tb" title="체크박스 (- [ ])" onClick={() => prefix('- [ ] ')}>☑</button>
-        <button type="button" className="tb" title="인용 (>)" onClick={() => prefix('> ')}>❝</button>
-        <span className="tb-sep" />
-        <button type="button" className="tb mono" title="인라인 코드 (`)" onClick={() => wrap('`', '`', 'code')}>`cd`</button>
-        <button type="button" className="tb" title="구분선 (---)" onClick={() => insert('\n---\n')}>—</button>
-        <button type="button" className="tb" title="표 삽입" onClick={() => insert('\n| 제목1 | 제목2 | 제목3 |\n|------|------|------|\n| 내용1 | 내용2 | 내용3 |\n')}>⊞</button>
-        <span className="tb-sep" />
-        <button
-          type="button"
-          className={`tb tb-link${showLinkPicker ? ' active' : ''}`}
-          title="노트 링크 [[]]"
-          onClick={() => setShowLinkPicker(v => !v)}
-        >🔗 [[]]</button>
-      </div>
-      {showLinkPicker && (
-        <div className="link-picker">
-          <input
-            className="link-picker-search"
-            placeholder="노트 이름 검색..."
-            value={linkSearch}
-            onChange={e => setLinkSearch(e.target.value)}
-            autoFocus
-          />
-          <div className="link-picker-list">
-            {filteredTitles.length === 0 ? (
-              <div className="link-picker-empty">노트가 없습니다</div>
-            ) : filteredTitles.map(t => (
-              <button key={t} type="button" className="link-picker-item" onClick={() => insertWikiLink(t)}>{t}</button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ── WYSIWYG 툴바 ──────────────────────────────────────
